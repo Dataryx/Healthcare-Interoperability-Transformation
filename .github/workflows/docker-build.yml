@@ -1,0 +1,387 @@
+name: Build Portal / Site / Utility Containers
+
+# Service-image builds moved out of this workflow as part of the δ-series
+# consolidation (PRs #691, #692, and the δ3 PR introducing pr-validation.yml).
+# Production service builds run via deploy-azure-aks.yml; PR validation runs
+# via pr-validation.yml. This workflow now covers only the non-service
+# concerns: the Blazor portal, the static marketing site, and the utility
+# containers under containers/. The service trigger path 'src/services/**'
+# is intentionally absent below; service-only changes should NOT spin this
+# workflow up.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/portal/**'
+      - 'src/site/**'
+      - 'containers/**'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/portal/**'
+      - 'src/site/**'
+      - 'containers/**'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ${{ vars.ACR_LOGIN_SERVER || 'clouhealthoffice.azurecr.io' }}
+  IMAGE_PREFIX: cloudhealthoffice
+
+jobs:
+  build-portal:
+    name: Build Blazor Portal
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Azure Login (OIDC)
+        if: github.event_name != 'pull_request'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        if: github.event_name != 'pull_request'
+        run: az acr login --name ${{ vars.ACR_NAME || 'clouhealthoffice' }}
+
+      # PR builds cannot use OIDC (no push), but should use ACR mirrored .NET
+      # base images only when Azure deploys are active. While Azure is paused,
+      # PR builds intentionally fall back to public MCR base images.
+      - name: Check ACR token available
+        id: check-acr-token
+        if: github.event_name == 'pull_request'
+        env:
+          _ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+        run: |
+          if [ -n "$_ACR_USERNAME" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to ACR for PR base-image pulls
+        id: acr-pr-login
+        if: github.event_name == 'pull_request' && vars.AZURE_DEPLOYMENTS_ENABLED == 'true' && steps.check-acr-token.outputs.available == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      # PR builds must exercise the same ACR path that main deploys do.
+      # The old silent MCR fallback hid commit 71c9d37 for 5 days: PR checks
+      # pulled .NET base images directly from MCR while main deploys tried to
+      # pull from an unpopulated ACR mirror and failed. Fail loudly here
+      # rather than let PR builds and main deploys exercise different
+      # registries — PR-green/main-red regressions must be impossible.
+      - name: Fail if ACR login didn't succeed on PR
+        if: github.event_name == 'pull_request' && vars.AZURE_DEPLOYMENTS_ENABLED == 'true' && steps.acr-pr-login.outcome != 'success'
+        env:
+          ACR_SHORT_NAME: ${{ vars.ACR_NAME || 'clouhealthoffice' }}
+        run: |
+          echo "::error::PR base-image pulls require the ACR_USERNAME / ACR_PASSWORD repo secrets."
+          echo "::error::Without them, PR builds and main deploys exercise different container"
+          echo "::error::registries, and main-only regressions (like 71c9d37) slip through PR review."
+          echo "::error::Setup (run against the subscription that owns $ACR_SHORT_NAME):"
+          echo "::error::  1. az acr scope-map create --registry $ACR_SHORT_NAME --name cho-ci-dotnet-pull --repository dotnet/sdk content/read --repository dotnet/aspnet content/read"
+          echo "::error::  2. az acr token create --registry $ACR_SHORT_NAME --name cho-ci-readonly --scope-map cho-ci-dotnet-pull"
+          echo "::error::     (this command prints credentials.passwords[0].value once — capture it)"
+          echo "::error::  3. If you missed step 2's output, rotate with: az acr token credential generate --registry $ACR_SHORT_NAME --name cho-ci-readonly --password1"
+          echo "::error::  4. Save username 'cho-ci-readonly' as repo secret ACR_USERNAME"
+          echo "::error::  5. Save password1 value as repo secret ACR_PASSWORD"
+          echo "::error::See docs/security/SECRETS-INVENTORY.md for the rationale."
+          exit 1
+
+      - name: Warn when using public MCR base images on PR
+        if: github.event_name == 'pull_request' && vars.AZURE_DEPLOYMENTS_ENABLED != 'true'
+        run: |
+          echo "::warning::Azure deployments are paused; portal PR build will use public mcr.microsoft.com base images."
+
+      - name: Set effective base-image registry
+        run: echo "BUILD_REGISTRY=${{ github.event_name == 'pull_request' && vars.AZURE_DEPLOYMENTS_ENABLED != 'true' && 'mcr.microsoft.com' || env.REGISTRY }}" >> "$GITHUB_ENV"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-portal
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./src/portal/CloudHealthOffice.Portal/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: REGISTRY=${{ env.BUILD_REGISTRY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  build-site:
+    name: Build Static Site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Azure Login (OIDC)
+        if: github.event_name != 'pull_request'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        if: github.event_name != 'pull_request'
+        run: az acr login --name ${{ vars.ACR_NAME || 'clouhealthoffice' }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-site
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./src/site
+          file: ./src/site/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+
+  deploy-site:
+    name: Deploy Static Site to Azure Container Apps
+    runs-on: ubuntu-latest
+    needs: build-site
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Container App
+        uses: azure/cli@v3
+        with:
+          inlineScript: |
+            set -euo pipefail
+            RG="${{ vars.AZURE_RG_NAME }}"
+            APP_NAME="${{ vars.SITE_CONTAINER_APP_NAME || 'cho-site' }}"
+            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-site:sha-${GITHUB_SHA::7}"
+
+            echo "==========================================="
+            echo "Deploying Static Site Container"
+            echo "==========================================="
+            echo "Resource Group: $RG"
+            echo "Container App:  $APP_NAME"
+            echo "Image:          $IMAGE"
+            echo ""
+
+            # Update container app with new image
+            az containerapp update \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --image "$IMAGE"
+
+            echo ""
+            echo "✅ Container App image updated"
+
+            # Fix health probes: nginx-unprivileged listens on 8080, not 80.
+            # Probes on port 80 keep the revision stuck in "activating" state.
+            bash scripts/deploy/fix-aca-site-probes.sh "$APP_NAME" "$RG"
+
+            echo ""
+
+            # Ensure ACA ingress targetPort is 8080 (infra may default to 80).
+            CURRENT_TARGET_PORT=$(az containerapp show \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --query "properties.configuration.ingress.targetPort" -o tsv 2>/dev/null) || {
+              echo "⚠️  Could not query ingress targetPort; skipping targetPort check."
+              CURRENT_TARGET_PORT=""
+            }
+
+            if [ "$CURRENT_TARGET_PORT" != "8080" ]; then
+              echo "Ingress targetPort is '${CURRENT_TARGET_PORT:-unknown}', updating to 8080..."
+              az containerapp ingress update \
+                --name "$APP_NAME" \
+                --resource-group "$RG" \
+                --target-port 8080
+              echo "✅ Container App ingress targetPort updated to 8080"
+            else
+              echo "✅ Container App ingress targetPort already set to 8080; no update needed"
+            fi
+
+            echo ""
+            echo "✅ Container App updated successfully (image + health probes + ingress)"
+
+            # Get the FQDN for verification
+            FQDN=$(az containerapp show \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --query "properties.configuration.ingress.fqdn" -o tsv)
+
+            echo "🌐 Site URL: https://$FQDN"
+
+      - name: Verify Deployment
+        uses: azure/cli@v3
+        with:
+          inlineScript: |
+            set -euo pipefail
+            RG="${{ vars.AZURE_RG_NAME }}"
+            APP_NAME="${{ vars.SITE_CONTAINER_APP_NAME || 'cho-site' }}"
+
+            FQDN=$(az containerapp show \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --query "properties.configuration.ingress.fqdn" -o tsv)
+
+            echo "Waiting 15 seconds for deployment to propagate..."
+            sleep 15
+
+            for i in $(seq 1 5); do
+              echo "⏳ Health check attempt $i/5..."
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$FQDN" || echo "000")
+
+              if [ "$HTTP_STATUS" = "200" ]; then
+                echo "✅ Site is healthy - HTTP $HTTP_STATUS"
+
+                # Verify sitemap and robots.txt
+                SITEMAP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$FQDN/sitemap.xml" || echo "000")
+                ROBOTS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$FQDN/robots.txt" || echo "000")
+                echo "📄 sitemap.xml: HTTP $SITEMAP_STATUS"
+                echo "🤖 robots.txt: HTTP $ROBOTS_STATUS"
+                exit 0
+              fi
+
+              echo "   HTTP $HTTP_STATUS - retrying in 10s..."
+              sleep 10
+            done
+
+            echo "⚠️  Site may need more time to stabilize"
+            exit 0
+
+  build-containers:
+    name: Build Utility Containers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - x12-parser
+          - x12-276-parser
+          - claims-publisher
+          - kafka-publisher
+          - sftp-fetcher
+          - x12-encoder
+          - metadata-extractor
+          - x12-834-parser
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Azure Login (OIDC)
+        if: github.event_name != 'pull_request'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        if: github.event_name != 'pull_request'
+        run: az acr login --name ${{ vars.ACR_NAME || 'clouhealthoffice' }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.container }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Check if Dockerfile exists
+        id: check
+        run: |
+          if [ -f "./containers/${{ matrix.container }}/Dockerfile" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Dockerfile not found for ${{ matrix.container }}"
+          fi
+
+      - name: Build and push
+        if: steps.check.outputs.exists == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./containers/${{ matrix.container }}
+          file: ./containers/${{ matrix.container }}/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64

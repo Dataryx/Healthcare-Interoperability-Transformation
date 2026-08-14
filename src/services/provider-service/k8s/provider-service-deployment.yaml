@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: provider-service-config
+  namespace: cloudhealthoffice
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  MongoDb__DatabaseName: "cloudhealthoffice"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provider-service
+  namespace: cloudhealthoffice
+  labels:
+    app: provider-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: provider-service
+  template:
+    metadata:
+      labels:
+        app: provider-service
+        tier: backend
+    spec:
+      containers:
+      - name: provider-service
+        image: clouhealthoffice.azurecr.io/cloudhealthoffice-provider-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: provider-service-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: MongoDb__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: connectionString
+        - name: MongoDb__DatabaseName
+          valueFrom:
+            configMapKeyRef:
+              name: provider-service-config
+              key: MongoDb__DatabaseName
+        resources:
+          requests:
+            cpu: 200m
+            memory: 128Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: provider-service
+  namespace: cloudhealthoffice
+  labels:
+    app: provider-service
+spec:
+  type: ClusterIP
+  selector:
+    app: provider-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP

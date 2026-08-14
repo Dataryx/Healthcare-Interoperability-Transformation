@@ -1,0 +1,318 @@
+name: Smoke Tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'release/*']
+  pull_request:
+    branches: [main, 'release/*']
+
+jobs:
+  smoke-tests:
+    runs-on: ubuntu-latest
+    name: Run comprehensive smoke tests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # ---------- Repository structure validation ----------
+      - name: Validate repository structure
+        run: |
+          echo "🔍 Validating repository structure..."
+
+          # Check for required directories
+          required_dirs=("infrastructure" "scripts" ".github/workflows")
+          for dir in "${required_dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+              echo "::error::Required directory missing: $dir"
+              exit 1
+            fi
+            echo "✓ Found: $dir"
+          done
+
+          # Check for required files
+          required_files=("README.md" "SECURITY.md" "CONTRIBUTING.md" "docs/guides/ARCHITECTURE.md" "docs/guides/DEPLOYMENT.md")
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Required file missing: $file"
+              exit 1
+            fi
+            echo "✓ Found: $file"
+          done
+
+          echo "✅ Repository structure validated"
+
+      # ---------- Bicep template validation ----------
+      - name: Setup Bicep
+        run: |
+          az bicep install
+          az bicep version
+
+      - name: Validate Bicep templates
+        run: |
+          echo "🔍 Validating Bicep templates..."
+
+          if [ -f "infrastructure/azure/main.bicep" ]; then
+            echo "Building infrastructure/azure/main.bicep..."
+            if ! az bicep build --file infrastructure/azure/main.bicep --outfile /tmp/main-arm.json; then
+              echo "::error::Bicep build failed for infrastructure/azure/main.bicep"
+              exit 1
+            fi
+
+            size=$(stat -c%s /tmp/main-arm.json 2>/dev/null || stat -f%z /tmp/main-arm.json 2>/dev/null)
+            echo "✓ infrastructure/azure/main.bicep compiled successfully ($size bytes)"
+          else
+            echo "::warning::infrastructure/azure/main.bicep not found"
+          fi
+
+          echo "✅ Bicep templates validated"
+
+      # ---------- Service Bus configuration validation ----------
+      - name: Validate Service Bus configuration
+        run: |
+          echo "🔍 Validating Service Bus topic configuration..."
+
+          # Check if Service Bus topics are defined in Bicep
+          if [ -f "infrastructure/azure/main.bicep" ]; then
+            required_topics=("attachments-in" "rfai-requests" "edi-278")
+
+            for topic in "${required_topics[@]}"; do
+              if grep -q "$topic" infrastructure/azure/main.bicep; then
+                echo "✓ Found topic: $topic"
+              else
+                echo "::warning::Topic not found in infrastructure/azure/main.bicep: $topic"
+              fi
+            done
+          fi
+
+          echo "✅ Service Bus configuration validated"
+
+      # ---------- X12 schema verification ----------
+      - name: Validate X12 schemas
+        run: |
+          echo "🔍 Validating X12 schema files..."
+
+          schemas=(
+            "X12_005010X212_277.xsd:277 RFAI"
+            "X12_005010X217_278.xsd:278 Review"
+          )
+
+          for schema_info in "${schemas[@]}"; do
+            IFS=':' read -r file desc <<< "$schema_info"
+            if [ -f "$file" ]; then
+              echo "✓ Found schema: $file ($desc)"
+            else
+              echo "::warning::Schema file not found: $file ($desc)"
+            fi
+          done
+
+          echo "✅ X12 schema validation complete"
+
+      # ---------- Microservices structure validation ----------
+      - name: Validate microservices structure
+        run: |
+          echo "🔍 Validating microservices structure..."
+
+          # Check .NET services
+          dotnet_services=(
+            "src/services/enrollment-import-service/EnrollmentImportService.csproj"
+            "src/services/enrollment-import-service/Controllers/EnrollmentController.cs"
+            "src/services/enrollment-import-service/Services/EnrollmentImportService.cs"
+            "src/services/enrollment-import-service/Services/EnrollmentRepository.cs"
+          )
+
+          for file in "${dotnet_services[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✓ Found: $file"
+            else
+              echo "::warning::Service file not found: $file"
+            fi
+          done
+
+          # Check Node.js containers
+          node_containers=(
+            "containers/x12-834-parser/package.json"
+            "containers/x12-834-parser/parse-834.js"
+            "containers/x12-834-parser/Dockerfile"
+          )
+
+          for file in "${node_containers[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✓ Found: $file"
+
+              # Validate package.json
+              if [[ "$file" == *package.json ]]; then
+                if ! jq . "$file" >/dev/null 2>&1; then
+                  echo "::error file=$file::Invalid JSON"
+                  exit 1
+                fi
+              fi
+            else
+              echo "::warning::Container file not found: $file"
+            fi
+          done
+
+          echo "✅ Microservices structure validated"
+
+      # ---------- Argo Workflows validation ----------
+      - name: Validate Argo Workflows
+        run: |
+          echo "🔍 Validating Argo Workflows..."
+
+          argo_workflows=(
+            "infrastructure/argo-workflows/x12-834-enrollment-import.yaml"
+          )
+
+          for workflow in "${argo_workflows[@]}"; do
+            if [ -f "$workflow" ]; then
+              echo "Checking: $workflow"
+
+              # Basic YAML validation
+              if ! python3 -c "import yaml; yaml.safe_load(open('$workflow'))" 2>/dev/null; then
+                echo "::error file=$workflow::Invalid YAML syntax"
+                exit 1
+              fi
+
+              echo "✓ Valid: $workflow"
+            else
+              echo "::warning::Workflow not found: $workflow"
+            fi
+          done
+
+          echo "✅ Argo Workflows validated"
+
+      # ---------- PowerShell script validation ----------
+      - name: Validate PowerShell scripts
+        shell: pwsh
+        run: |
+          Write-Host "🔍 Validating PowerShell scripts..."
+
+          $scripts = Get-ChildItem -Path . -Filter "*.ps1" -Recurse |
+            Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' }
+
+          Write-Host "Found $($scripts.Count) PowerShell scripts"
+
+          $failed = $false
+          foreach ($script in $scripts) {
+            try {
+              $null = [System.Management.Automation.PSParser]::Tokenize(
+                (Get-Content $script.FullName -Raw), [ref]$null)
+              Write-Host "✓ Valid syntax: $($script.Name)"
+            } catch {
+              Write-Host "::error file=$($script.FullName)::Syntax error: $_"
+              $failed = $true
+            }
+          }
+
+          if ($failed) {
+            Write-Host "::error::PowerShell script validation failed"
+            exit 1
+          }
+
+          Write-Host "✅ All PowerShell scripts validated"
+
+      # ---------- EDI file validation ----------
+      - name: Validate EDI test files
+        shell: pwsh
+        run: |
+          Write-Host "🔍 Validating EDI test files..."
+
+          if (Test-Path "scripts/validate-edi-x12.ps1") {
+            $ediFiles = Get-ChildItem -Filter "*.edi" -File
+
+            if ($ediFiles.Count -eq 0) {
+              Write-Host "⚠️  No EDI files found to validate"
+            } else {
+              Write-Host "Found $($ediFiles.Count) EDI file(s)"
+
+              foreach ($file in $ediFiles) {
+                Write-Host "Validating: $($file.Name)"
+                & ./scripts/validate-edi-x12.ps1 -Path $file.FullName
+
+                if ($LASTEXITCODE -ne 0) {
+                  Write-Host "::warning::EDI validation had issues for $($file.Name)"
+                }
+              }
+            }
+          } else {
+            Write-Host "⚠️  EDI validation script not found"
+          }
+
+          Write-Host "✅ EDI validation complete"
+
+      # ---------- Security scan ----------
+      - name: Security scan for PII/PHI
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Write-Host "🔍 Running security scan..."
+
+          if (Test-Path "scripts/scan-for-phi-pii.ps1") {
+            & ./scripts/scan-for-phi-pii.ps1 -Path . -Exclude ".git","node_modules",".terraform"
+
+            # Report findings but don't fail the build
+            # High severity issues in docs/test data are acceptable
+            if ($LASTEXITCODE -eq 1) {
+              Write-Host "::warning::Security scan found issues in test data or documentation"
+              Write-Host "::notice::These are acceptable for test/documentation files"
+            }
+          } else {
+            Write-Host "⚠️  Security scan script not found"
+          }
+
+          Write-Host "✅ Security scan complete"
+
+      # ---------- Test data validation ----------
+      - name: Validate test data files
+        run: |
+          echo "🔍 Validating test data files..."
+
+          test_files=(
+            "test-x12-275-clearinghouse-inbound.edi:275 test data"
+            "test-x12-834-enrollment-sample.edi:834 enrollment test data"
+            "test-backend-response-payload.json:claims backend response"
+          )
+
+          for test_info in "${test_files[@]}"; do
+            IFS=':' read -r file desc <<< "$test_info"
+            if [ -f "$file" ]; then
+              echo "✓ Found: $file ($desc)"
+
+              # Validate JSON files
+              if [[ "$file" == *.json ]]; then
+                if ! jq . "$file" >/dev/null 2>&1; then
+                  echo "::error file=$file::Invalid JSON"
+                  exit 1
+                fi
+              fi
+            else
+              echo "::warning::Test file not found: $file"
+            fi
+          done
+
+          echo "✅ Test data validation complete"
+
+      # ---------- Summary ----------
+      - name: Test summary
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "✅ All smoke tests passed successfully!"
+          echo "=========================================="
+          echo ""
+          echo "Validated:"
+          echo "  - Repository structure"
+          echo "  - Bicep templates"
+          echo "  - Service Bus configuration"
+          echo "  - X12 schemas"
+          echo "  - Microservices (.NET + Node.js containers)"
+          echo "  - Argo Workflows (834 enrollment pipeline)"
+          echo "  - PowerShell scripts"
+          echo "  - EDI test files"
+          echo "  - Security scan"
+          echo "  - Test data files (including 834 enrollment)"
+          echo ""

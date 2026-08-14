@@ -1,0 +1,345 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portal-config
+  namespace: cloudhealthoffice
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Services__MemberService: "http://member-service.cloudhealthoffice/api/v1"
+  Services__CoverageService: "http://coverage-service.cloudhealthoffice/api"
+  Services__ClaimsService: "http://claims-service.cloudhealthoffice/api"
+  Services__EligibilityService: "http://eligibility-service.cloudhealthoffice/api"
+  Services__AuthorizationService: "http://authorization-service.cloudhealthoffice/api"
+  Services__ProviderService: "http://provider-service.cloudhealthoffice/api"
+  Services__BenefitPlanService: "http://benefit-plan-service.cloudhealthoffice/api"
+  Services__PaymentService: "http://payment-service.cloudhealthoffice/api"
+  Services__TenantService: "http://tenant-service.cloudhealthoffice/api"
+  Services__BillingService: "http://billing-service.cloudhealthoffice/api"
+  Services__RfaiService: "http://rfai-service.cloudhealthoffice/api"
+  Services__PricingApi: "http://pricing-api.cloudhealthoffice"
+  Services__AppealsService: "http://appeals-service.cloudhealthoffice/api"
+  Services__CapitationService: "http://capitation-service.cloudhealthoffice/api"
+  Services__AttachmentService: "http://attachment-service.cloudhealthoffice/api"
+  Services__MemberDocumentService: "http://member-document-service.cloudhealthoffice"
+  Services__SponsorService: "http://sponsor-service.cloudhealthoffice/api/v1"
+  Services__ReferenceDataService: "http://reference-data-service.cloudhealthoffice/api/ReferenceData"
+  Services__ArgoWorkflows: "http://argo-workflows-server.cloudhealthoffice:2746"
+  Services__Prometheus: "http://cho-monitoring-prometheus-server.cho-monitoring"
+  Portal__Title: "Cloud Health Office"
+  Portal__Version: "1.0.0"
+  MongoDB__DatabaseName: "cloudhealthoffice"
+  Redis__ConnectionString: "redis-dataprotection.cloudhealthoffice.svc.cluster.local:6379"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal
+  namespace: cloudhealthoffice
+  labels:
+    app: portal
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: portal
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: portal
+        version: v1
+    spec:
+      containers:
+      - name: portal
+        # Image is replaced with ACR reference during deploy-azure-aks.yml CI/CD
+        image: ghcr.io/aurelianware/cloudhealthoffice-portal:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: Services__MemberService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__MemberService
+        - name: Services__CoverageService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__CoverageService
+        - name: Services__ClaimsService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__ClaimsService
+        - name: Services__EligibilityService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__EligibilityService
+        - name: Services__AuthorizationService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__AuthorizationService
+        - name: Services__ProviderService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__ProviderService
+        - name: Services__BenefitPlanService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__BenefitPlanService
+        - name: Services__PaymentService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__PaymentService
+        - name: Services__TenantService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__TenantService
+        - name: Services__BillingService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__BillingService
+        - name: Services__RfaiService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__RfaiService
+        - name: Services__ArgoWorkflows
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__ArgoWorkflows
+        - name: Services__Prometheus
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__Prometheus
+        - name: MongoDB__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: connectionString
+        - name: MongoDB__DatabaseName
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: MongoDB__DatabaseName
+        - name: Redis__ConnectionString
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Redis__ConnectionString
+        - name: AzureAd__TenantId
+          valueFrom:
+            secretKeyRef:
+              name: azure-ad-config
+              key: TenantId
+        - name: AzureAd__ClientId
+          valueFrom:
+            secretKeyRef:
+              name: azure-ad-config
+              key: ClientId
+        - name: AzureAd__ClientSecret
+          valueFrom:
+            secretKeyRef:
+              name: azure-ad-config
+              key: ClientSecret
+        - name: STRIPE_PUBLISHABLE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: stripe-api-keys
+              key: publishable-key
+        - name: STRIPE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: stripe-api-keys
+              key: secret-key
+        - name: Stripe__PublishableKey
+          valueFrom:
+            secretKeyRef:
+              name: stripe-api-keys
+              key: publishable-key
+        - name: Stripe__SecretKey
+          valueFrom:
+            secretKeyRef:
+              name: stripe-api-keys
+              key: secret-key
+        - name: Stripe__Price__Starter
+          valueFrom:
+            secretKeyRef:
+              name: stripe-api-keys
+              key: starter-price-id
+        - name: Stripe__Price__Professional
+          valueFrom:
+            secretKeyRef:
+              name: stripe-api-keys
+              key: professional-price-id
+        - name: Services__PricingApi
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__PricingApi
+        - name: Services__AppealsService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__AppealsService
+        - name: Services__CapitationService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__CapitationService
+        - name: Services__AttachmentService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__AttachmentService
+        - name: Services__MemberDocumentService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__MemberDocumentService
+        - name: Services__SponsorService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__SponsorService
+        - name: Services__ReferenceDataService
+          valueFrom:
+            configMapKeyRef:
+              name: portal-config
+              key: Services__ReferenceDataService
+        - name: PricingApi__AdminSecret
+          valueFrom:
+            secretKeyRef:
+              name: pricing-api-secret
+              key: AdminSecret
+        - name: Email__SmtpHost
+          valueFrom:
+            secretKeyRef:
+              name: email-config
+              key: SmtpHost
+        - name: Email__SmtpPort
+          valueFrom:
+            secretKeyRef:
+              name: email-config
+              key: SmtpPort
+        - name: Email__EnableSsl
+          valueFrom:
+            secretKeyRef:
+              name: email-config
+              key: EnableSsl
+        - name: Email__FromAddress
+          valueFrom:
+            secretKeyRef:
+              name: email-config
+              key: FromAddress
+        - name: Email__SalesTeamAddress
+          valueFrom:
+            secretKeyRef:
+              name: email-config
+              key: SalesTeamAddress
+        - name: Email__Username
+          valueFrom:
+            secretKeyRef:
+              name: email-config
+              key: Username
+        - name: Email__Password
+          valueFrom:
+            secretKeyRef:
+              name: email-config
+              key: Password
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          failureThreshold: 36
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 5
+          timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal
+  namespace: cloudhealthoffice
+  labels:
+    app: portal
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours for Blazor Server sessions
+  selector:
+    app: portal
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: portal-hpa
+  namespace: cloudhealthoffice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: portal
+  minReplicas: 2  # 2 replicas ensures zero-downtime rolling deploys
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

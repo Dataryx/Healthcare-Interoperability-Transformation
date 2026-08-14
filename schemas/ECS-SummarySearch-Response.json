@@ -1,0 +1,556 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ECS Summary Search Response",
+  "description": "Schema for Enhanced Claim Status (ECS) Summary Search responses in Clearinghouse format",
+  "type": "object",
+  "required": ["requestId", "status", "timestamp"],
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "description": "Original request identifier for tracking"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "error", "partial"],
+      "description": "Overall status of the search operation"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Response generation timestamp (ISO 8601)"
+    },
+    "searchMethod": {
+      "type": "string",
+      "enum": ["ServiceDate", "Member", "CheckNumber", "ClaimHistory"],
+      "description": "The search method that was executed"
+    },
+    "totalResults": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of claims found"
+    },
+    "claims": {
+      "type": "array",
+      "description": "Array of claim status results",
+      "items": {
+        "type": "object",
+        "required": ["claimNumber", "claimStatus"],
+        "properties": {
+          "claimNumber": {
+            "type": "string",
+            "description": "Payer claim control number"
+          },
+          "patientAccountNumber": {
+            "type": "string",
+            "description": "Provider's patient account number"
+          },
+          "claimStatus": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Paid",
+              "Denied",
+              "Partially Paid",
+              "In Process",
+              "Suspended",
+              "Forwarded",
+              "Adjusted"
+            ],
+            "description": "Current status of the claim"
+          },
+          "claimStatusCode": {
+            "type": "string",
+            "description": "X12 status code (e.g., F0, F1, F2, F3)"
+          },
+          "claimStatusCategory": {
+            "type": "string",
+            "description": "Status category code"
+          },
+          "statusCode": {
+            "type": "string",
+            "description": "X12 status code (ValueAdds277)"
+          },
+          "statusCodeDescription": {
+            "type": "string",
+            "description": "Human-readable status description (ValueAdds277)"
+          },
+          "serviceFromDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Service start date (CCYYMMDD)"
+          },
+          "serviceToDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Service end date (CCYYMMDD)"
+          },
+          "receivedDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date claim was received by payer (best practice - ValueAdds277)"
+          },
+          "processedDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date claim was processed"
+          },
+          "finalizedDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date claim was finalized (best practice - ValueAdds277)"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Last status update date (REQUIRED - ValueAdds277)"
+          },
+          "exchangeDate": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Clearinghouse received data timestamp (ValueAdds277)"
+          },
+          "paidDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date claim was paid (if applicable)"
+          },
+          "billedAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Total amount billed"
+          },
+          "BILLED": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Total billed amount (REQUIRED - ValueAdds277)"
+          },
+          "allowedAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Total amount allowed by payer"
+          },
+          "ALLOWED": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Contractual amount (best practice - ValueAdds277)"
+          },
+          "paidAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Total amount paid"
+          },
+          "INSURANCE_TOTAL_PAID": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Insurance payment (best practice - ValueAdds277)"
+          },
+          "patientResponsibility": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Amount patient is responsible for"
+          },
+          "PATIENT_RESPONSIBILITY": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Patient liability (best practice - ValueAdds277)"
+          },
+          "COPAY": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Patient copay (best practice - ValueAdds277)"
+          },
+          "COINSURANCE": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Patient coinsurance (best practice - ValueAdds277)"
+          },
+          "DEDUCTIBLE": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Deductible amount (best practice - ValueAdds277)"
+          },
+          "DISCOUNT": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Discount amount (best practice - ValueAdds277)"
+          },
+          "adjustmentAmount": {
+            "type": "number",
+            "description": "Total adjustment amount"
+          },
+          "payerId": {
+            "type": "string",
+            "description": "Payer identifier"
+          },
+          "payerName": {
+            "type": "string",
+            "description": "Payer name"
+          },
+          "providerId": {
+            "type": "string",
+            "description": "Provider NPI or identifier"
+          },
+          "providerName": {
+            "type": "string",
+            "description": "Provider name"
+          },
+          "memberId": {
+            "type": "string",
+            "description": "Member/subscriber ID"
+          },
+          "memberName": {
+            "type": "string",
+            "description": "Member/patient name"
+          },
+          "checkNumber": {
+            "type": "string",
+            "description": "Check or EFT trace number (if paid)"
+          },
+          "checkDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Check issue date (if paid)"
+          },
+          "remarkCodes": {
+            "type": "array",
+            "description": "Claim adjustment remark codes",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reasonCodes": {
+            "type": "array",
+            "description": "Claim adjustment reason codes",
+            "items": {
+              "type": "string"
+            }
+          },
+          "code": {
+            "type": "array",
+            "description": "Reason/remark codes array (best practice - ValueAdds277)",
+            "items": {
+              "type": "string"
+            }
+          },
+          "statusDetails": {
+            "type": "string",
+            "description": "Additional status details or messages"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Payer-provided comment (ValueAdds277)"
+          },
+          "drgCode": {
+            "type": "string",
+            "description": "Diagnosis Related Group (best practice - ValueAdds277)"
+          },
+          "facilityTypeCodeDescription": {
+            "type": "string",
+            "description": "Facility type description (best practice - ValueAdds277)"
+          },
+          "diagnosisCodes": {
+            "type": "array",
+            "description": "ICD-10 diagnosis codes array (best practice - ValueAdds277)",
+            "items": {
+              "type": "string"
+            }
+          },
+          "payeeName": {
+            "type": "string",
+            "description": "Payee on remittance (ValueAdds277)"
+          },
+          "checkCashedDate": {
+            "type": "string",
+            "format": "date",
+            "description": "When check was cashed (ValueAdds277)"
+          },
+          "checkAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Check amount (ValueAdds277)"
+          },
+          "patient": {
+            "type": "object",
+            "description": "Patient demographic information (ValueAdds277)",
+            "properties": {
+              "lastName": {
+                "type": "string",
+                "description": "Patient last name"
+              },
+              "firstName": {
+                "type": "string",
+                "description": "Patient first name"
+              },
+              "middleName": {
+                "type": "string",
+                "description": "Patient middle name"
+              },
+              "suffix": {
+                "type": "string",
+                "description": "Patient name suffix"
+              },
+              "birthdate": {
+                "type": "string",
+                "format": "date",
+                "description": "Patient date of birth"
+              },
+              "memberId": {
+                "type": "string",
+                "description": "Patient member ID"
+              },
+              "gender": {
+                "type": "string",
+                "enum": ["M", "F", "U"],
+                "description": "Patient gender"
+              }
+            }
+          },
+          "subscriber": {
+            "type": "object",
+            "description": "Subscriber demographic information (ValueAdds277)",
+            "properties": {
+              "lastName": {
+                "type": "string",
+                "description": "Subscriber last name"
+              },
+              "firstName": {
+                "type": "string",
+                "description": "Subscriber first name"
+              },
+              "middleName": {
+                "type": "string",
+                "description": "Subscriber middle name"
+              },
+              "suffix": {
+                "type": "string",
+                "description": "Subscriber name suffix"
+              },
+              "memberId": {
+                "type": "string",
+                "description": "Subscriber member ID"
+              },
+              "groupNumber": {
+                "type": "string",
+                "description": "Subscriber group number"
+              }
+            }
+          },
+          "billingProvider": {
+            "type": "object",
+            "description": "Billing provider information (ValueAdds277)",
+            "properties": {
+              "taxId": {
+                "type": "string",
+                "description": "Provider tax ID"
+              },
+              "npi": {
+                "type": "string",
+                "description": "Provider NPI"
+              },
+              "lastName": {
+                "type": "string",
+                "description": "Provider last name"
+              },
+              "firstName": {
+                "type": "string",
+                "description": "Provider first name"
+              },
+              "middleName": {
+                "type": "string",
+                "description": "Provider middle name"
+              },
+              "suffix": {
+                "type": "string",
+                "description": "Provider name suffix"
+              }
+            }
+          },
+          "renderingProvider": {
+            "type": "object",
+            "description": "Rendering provider information (ValueAdds277)",
+            "properties": {
+              "taxId": {
+                "type": "string",
+                "description": "Provider tax ID"
+              },
+              "npi": {
+                "type": "string",
+                "description": "Provider NPI"
+              },
+              "lastName": {
+                "type": "string",
+                "description": "Provider last name"
+              },
+              "firstName": {
+                "type": "string",
+                "description": "Provider first name"
+              },
+              "middleName": {
+                "type": "string",
+                "description": "Provider middle name"
+              },
+              "suffix": {
+                "type": "string",
+                "description": "Provider name suffix"
+              }
+            }
+          },
+          "serviceLines": {
+            "type": "array",
+            "description": "Service line details (ValueAdds277)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fromDate": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "Service line start date (best practice - ValueAdds277)"
+                },
+                "toDate": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "Service line end date (best practice - ValueAdds277)"
+                },
+                "diagnosisCodes": {
+                  "type": "array",
+                  "description": "ICD-10 codes per line (best practice - ValueAdds277)",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "procedureCode": {
+                  "type": "string",
+                  "description": "CPT/HCPCS code (best practice - ValueAdds277)"
+                },
+                "modifiers": {
+                  "type": "array",
+                  "description": "Procedure modifiers (best practice - ValueAdds277)",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "quantity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Units (best practice - ValueAdds277)"
+                },
+                "DEDUCTIBLE": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Line deductible (best practice - ValueAdds277)"
+                },
+                "DISCOUNT": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Line discount (best practice - ValueAdds277)"
+                },
+                "COPAY": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Line copay (best practice - ValueAdds277)"
+                },
+                "COINSURANCE": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Line coinsurance (best practice - ValueAdds277)"
+                },
+                "PATIENT_RESPONSIBILITY": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Line patient responsibility (best practice - ValueAdds277)"
+                }
+              }
+            }
+          },
+          "eligibleForAttachment": {
+            "type": "boolean",
+            "description": "Can send attachments (ValueAdds277 integration flag)"
+          },
+          "eligibleForChat": {
+            "type": "boolean",
+            "description": "Can chat with payer (ValueAdds277 integration flag)"
+          },
+          "eligibleForCorrection": {
+            "type": "boolean",
+            "description": "Can correct claim (ValueAdds277 integration flag)"
+          },
+          "eligibleForMessaging": {
+            "type": "boolean",
+            "description": "Can message payer (ValueAdds277 integration flag)"
+          },
+          "eligibleForAppeal": {
+            "type": "boolean",
+            "description": "Can dispute claim (CRITICAL for Appeals integration - ValueAdds277)"
+          },
+          "eligibleForRemittanceViewer": {
+            "type": "boolean",
+            "description": "Remittance viewer eligibility (ValueAdds277 integration flag)"
+          },
+          "appealMessage": {
+            "type": "string",
+            "description": "Appeal-related message for provider (ValueAdds277)"
+          },
+          "appealType": {
+            "type": "string",
+            "description": "Type of appeal allowed (ValueAdds277)"
+          },
+          "appealTimelyFilingDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Last date to file appeal (ValueAdds277)"
+          }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "description": "Array of error messages (if status is error or partial)",
+      "items": {
+        "type": "object",
+        "required": ["errorCode", "errorMessage"],
+        "properties": {
+          "errorCode": {
+            "type": "string",
+            "description": "Error code identifier"
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Human-readable error message"
+          },
+          "errorDetails": {
+            "type": "string",
+            "description": "Additional error details"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Array of warning messages",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "description": "Pagination information for large result sets",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "totalPages": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "hasNextPage": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

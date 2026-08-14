@@ -1,0 +1,73 @@
+apiVersion: v2
+name: cloudhealthoffice
+description: Cloud Health Office - Kubernetes-native X12 EDI processing platform
+type: application
+version: 1.0.0
+python3 -m pip install pytest -r functions/ClaimRiskScorer/requirements.txtpython3 -m pip install pytest -r functions/ClaimRiskScorer/requirements.txtpython3 -m pip install pytest -r functions/ClaimRiskScorer/requirements.txtappVersion: "1.0.0"
+
+keywords:
+  - healthcare
+  - edi
+  - x12
+  - hipaa
+  - argo-workflows
+  - kafka
+  - hashicorp-vault
+  - multi-cloud
+
+maintainers:
+  - name: Aurelianware
+    email: support@aurelianware.com
+    url: https://github.com/aurelianware
+
+home: https://github.com/aurelianware/cloudhealthoffice
+sources:
+  - https://github.com/aurelianware/cloudhealthoffice
+
+dependencies:
+  # Argo Workflows for orchestration
+  - name: argo-workflows
+    version: "0.38.0"
+    repository: "https://argoproj.github.io/argo-helm"
+    condition: argo-workflows.enabled
+  
+  # Argo Events for event-driven triggers
+  - name: argo-events
+    version: "2.4.1"
+    repository: "https://argoproj.github.io/argo-helm"
+    condition: argo-events.enabled
+  
+  # Kafka (optional - can use external Kafka)
+  - name: kafka
+    version: "26.6.2"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: kafka.enabled
+  
+  # MinIO (optional - for S3-compatible storage)
+  - name: minio
+    version: "12.10.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: minio.enabled
+  
+  # HashiCorp Vault (optional - for cloud-agnostic secrets management)
+  - name: vault
+    version: "0.27.0"
+    repository: "https://helm.releases.hashicorp.com"
+    condition: vaultServer.enabled
+    alias: vaultServer
+  
+  # Prometheus monitoring (optional)
+  - name: kube-prometheus-stack
+    version: "55.0.0"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: monitoring.enabled
+    alias: monitoring
+
+annotations:
+  category: Healthcare
+  licenses: BUSL-1.1
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/aurelianware/cloudhealthoffice/docs
+    - name: Multi-Cloud Deployment Guide
+      url: https://github.com/aurelianware/cloudhealthoffice/docs/MULTI-CLOUD-DEPLOYMENT.md

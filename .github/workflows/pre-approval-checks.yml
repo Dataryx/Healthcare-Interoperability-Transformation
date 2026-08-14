@@ -1,0 +1,88 @@
+name: Pre-Approval Security Checks
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (UAT or PROD)'
+        required: true
+        type: string
+    outputs:
+      scan-status:
+        description: 'Status of security scans'
+        value: ${{ jobs.security-checks.outputs.scan-status }}
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      scan-status: ${{ steps.summary.outputs.status }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Security Scan - Secrets Detection
+        id: secrets-scan
+        uses: trufflesecurity/trufflehog@v3.96.0
+        with:
+          path: ./
+          base: ${{ github.event.before || '' }}
+          head: ${{ github.sha }}
+          extra_args: --json --only-verified
+
+      - name: Security Scan - PII/PHI Detection
+        id: phi-scan
+        shell: pwsh
+        run: |
+          Write-Host "🔍 Scanning for PII/PHI in deployment artifacts..."
+          if (Test-Path "scripts/scan-for-phi-pii.ps1") {
+            & ./scripts/scan-for-phi-pii.ps1 -Path . -Exclude ".git","node_modules",".terraform"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::PII/PHI detected in code. Deployment blocked."
+              exit 1
+            }
+            Write-Host "✓ PII/PHI scan complete - no issues found"
+          } else {
+            Write-Host "::error::PII/PHI scan script not found at scripts/scan-for-phi-pii.ps1"
+            Write-Host "::error::Deployment blocked for HIPAA compliance. The PII/PHI scanner is mandatory."
+            exit 1
+          }
+
+      - name: Validate Deployment Artifacts
+        id: artifacts-check
+        run: |
+          echo "Validating deployment readiness..."
+
+          # Check for required files
+          REQUIRED_FILES=("infrastructure/azure/main.bicep")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -e "$file" ]; then
+              echo "::error::Required file/directory missing: $file"
+              exit 1
+            fi
+          done
+
+          echo "✓ All required deployment artifacts present"
+
+      - name: Pre-Approval Summary
+        id: summary
+        if: success()
+        run: |
+          {
+            echo "### 🔒 Pre-Approval Security Checks Passed"
+            echo ""
+            echo "**Security Validations:**"
+            echo "- ✅ No secrets or credentials detected (TruffleHog)"
+            echo "- ✅ No PII/PHI in code (HIPAA scanner)"
+            echo "- ✅ Deployment artifacts validated"
+            echo ""
+            echo "**Deployment Details:**"
+            echo "- Environment: ${{ inputs.environment }}"
+            echo "- Branch: \`${{ github.ref_name }}\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Triggered by: @${{ github.actor }}"
+            echo ""
+            echo "Ready for ${{ inputs.environment }} approval review. ✅"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "status=passed" >> "$GITHUB_OUTPUT"

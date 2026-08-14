@@ -1,0 +1,1925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Million Claim Challenge Evidence Archive | Cloud Health Office</title>
+  <meta name="description" content="Dated benchmark summaries, environment details, limitations, and raw artifacts for published Million Claim Challenge engineering results.">
+  <link rel="canonical" href="https://cloudhealthoffice.com/docs/million-claim-challenge/evidence">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Cloud Health Office">
+  <meta property="og:title" content="Million Claim Challenge Evidence Archive">
+  <meta property="og:description" content="Dated benchmark summaries, environment details, limitations, and raw artifacts for published Million Claim Challenge engineering results.">
+  <meta property="og:url" content="https://cloudhealthoffice.com/docs/million-claim-challenge/evidence">
+  <meta property="og:image" content="https://cloudhealthoffice.com/graphics/og-million-claim-challenge.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="/css/sentinel.css">
+  <script src="/js/mobile-nav.js"></script>
+  <style>
+    .publication { max-width: 860px; margin: 0 auto; padding: 64px 24px 96px; }
+    .publication-nav { margin-bottom: 40px; color: #8b949e; }
+    .publication-nav a { color: #00ffff; }
+    .eyebrow { color: #00ff88; font-size: .8rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .publication h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.08; margin: 12px 0 20px; }
+    .publication h2 { margin-top: 52px; color: #00ffff; }
+    .publication p, .publication li { color: #c9d1d9; font-size: 1.05rem; line-height: 1.8; }
+    .publication code { color: #00ff88; background: #111820; padding: .12rem .35rem; border-radius: 4px; }
+    .disclosure { border-left: 4px solid #f0b429; background: rgba(240,180,41,.08); padding: 18px 22px; margin: 30px 0; }
+    .source-note { font-size: .9rem !important; color: #8b949e !important; }
+    .article-links { display: flex; flex-wrap: wrap; gap: 12px; margin: 40px 0; }
+    .article-links a { border: 1px solid rgba(0,255,255,.35); border-radius: 6px; padding: 10px 14px; color: #00ffff; text-decoration: none; }
+    .evidence-block { margin: 28px 0; border: 1px solid rgba(0,255,255,.22); border-radius: 8px; overflow: hidden; }
+    .evidence-block summary { cursor: pointer; padding: 18px 20px; color: #00ffff; font-weight: 700; background: #0d1117; }
+    .evidence-block pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 22px; background: #080c10; color: #c9d1d9; font-size: .84rem; line-height: 1.55; }
+    .article-figure { margin: 40px 0; }
+    .article-figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid rgba(0,255,255,.18); background: #000; }
+    .article-figure figcaption { margin-top: 12px; font-size: .85rem; color: #8b949e; text-align: center; line-height: 1.5; }
+    .table-wrap { margin: 28px 0; overflow-x: auto; border: 1px solid rgba(0,255,255,.22); border-radius: 8px; }
+    .table-wrap table { width: 100%; border-collapse: collapse; font-size: .95rem; font-variant-numeric: tabular-nums; }
+    .table-wrap th, .table-wrap td { padding: 10px 16px; text-align: left; border-bottom: 1px solid rgba(139,148,158,.2); white-space: nowrap; }
+    .table-wrap th { color: #00ffff; font-weight: 700; background: #0d1117; }
+    .table-wrap td { color: #c9d1d9; }
+    .table-wrap tr:last-child td { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <main class="publication">
+    <nav class="publication-nav"><a href="/">Home</a> / <a href="/insights">Insights</a> / <a href="/docs/million-claim-challenge">Million Claim Challenge</a></nav>
+    <div class="eyebrow">Reproducibility archive</div><h1>Million Claim Challenge Evidence</h1><p>This archive keeps the evidence behind the engineering series visible and reviewable. Results are historical records, not generalized production capacity claims.</p><div class="disclosure"><strong>Interpretation rules:</strong> distinguish platform failures from business dispositions; do not count unsupported scenarios as passes; preserve allocated compute, corpus size, latency, and validator limitations with every result.</div><section id="episode-005"><div class="eyebrow">Part 5 · recorded artifact</div><h2>How the local Kubernetes sweep harness turned isolated fast runs into repeatable performance evidence.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-5-repeatably-faster">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-005/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 005</summary><pre># Episode 005 benchmark results
+
+## Environment
+
+- Environment: local Kubernetes via Docker Desktop
+- Docker resource allocation: 18 CPUs, approximately 24 GB memory
+- Tenant: `demo`
+- Workload: synthetic Million Claim Challenge claim corpus
+- Important caveat: these are local validation benchmarks, not production cloud benchmarks
+
+## 1,000-claim sweep
+
+The first sweep compared parallelism values 8, 10, 11, and 12 with two repeats each.
+
+The strongest result at 1,000 claims was parallelism 11:
+
+| Metric | Value |
+| --- | ---: |
+| Claims processed | 1,000 |
+| Parallelism | 11 |
+| Throughput | 247.10 claims/sec |
+| P95 latency | 100.35 ms |
+| P99 latency | 128.53 ms |
+| Platform failures | 0 |
+| Workflow checks | 160/160 matched |
+
+Interpretation: At 1,000 claims, p=11 had the best combination of throughput, latency, and workflow correctness.
+
+## 10,000-claim sweep
+
+The larger sweep changed the answer.
+
+| Parallelism | Claims/sec | P95 | P99 | Interpretation |
+| ---: | ---: | ---: | ---: | --- |
+| 10 | 209.54 | 103.47 ms | 149.85 ms | Better balance |
+| 12 | 209.81 | 118.19 ms | 170.90 ms | Tiny throughput edge, worse latency |
+
+Conclusion: p=10 is the better 10,000-claim setting despite p=12 having a tiny throughput edge. The latency profile matters.
+
+## Hidden 10,000-claim cap
+
+An attempted 50,000-claim run initially processed only 10,000 claims because the validator had a local safety cap.
+
+The fix was to make the cap explicit:
+
+- keep default max claims at 10,000
+- add an intentional `--max-claims` override
+- have local Kubernetes scripts pass the override when larger `CLAIMS` values are requested
+
+This is an important podcast point: repeatable benchmarking also validates the benchmark tooling.
+
+## True 50,000-claim run
+
+After the max-claims override, the platform completed a true 50,000-claim local Kubernetes run.
+
+| Metric | Value |
+| --- | ---: |
+| Claims requested | 50,000 |
+| Claims generated | 50,000 |
+| Claims processed | 50,000 |
+| Throughput | 157.07 claims/sec |
+| Elapsed time | 5 minutes 18 seconds |
+| P95 latency | 130 ms |
+| P99 latency | 175 ms |
+| Platform failures | 0 |
+| Workflow checks | 4,000/4,000 matched |
+
+The deterministic workflow checks included:
+
+- 1,000 clean paid scenarios
+- 1,000 excluded provider scenarios
+- 1,000 uncovered service scenarios
+- 1,000 prior authorization scenarios
+
+## Repeat benchmark without provider seeding
+
+Once the demo tenant had already been seeded with synthetic providers, the repeat benchmark could skip provider seeding.
+
+| Mode | Elapsed | Claims/sec | P95 | P99 | Platform failures | Workflow checks |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| With provider seed | 5:18 | 157.07 | 130 ms | 175 ms | 0 | 4,000/4,000 |
+| Skip provider seed | 4:25 | 188.64 | 106 ms | 151 ms | 0 | 4,000/4,000 |
+
+Interpretation: skipping provider seeding for repeat runs gives a cleaner adjudication throughput measurement and avoids paying first-run setup cost every time.
+
+## Correctness framing
+
+Correct denials are not failures.
+
+Business denials can be valid outcomes when the platform applies rules correctly. Examples include uncovered services, excluded providers, prior authorization requirements, duplicate logic, coding edits, and benefit plan limits.
+
+Platform failures are unexpected system or workflow failures.
+
+The benchmark must always report speed and correctness together.
+</pre></details></section>
+<section id="episode-006"><div class="eyebrow">Part 6 · recorded artifact</div><h2>Why paid is not the only correct outcome, and why unsupported scenarios must remain visible.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-6-honest-edge-case-scoring">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-006/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-006/raw-validator-output-50k.txt" target="_blank" rel="noopener noreferrer">Raw 50K validator output</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 006</summary><pre># Episode 006 benchmark results
+
+## Environment
+
+- Environment: local Kubernetes via Docker Desktop
+- Docker Desktop resources: 18 CPUs, 25,159,270,400 bytes memory (~23.4 GiB)
+- Tenant: `demo`
+- Workload: synthetic Million Claim Challenge claim corpus
+- Generator seed: 42
+- Line of business: Medicaid (3)
+- Prior-auth scenarios: enabled at 2%
+- Pend observation: enabled
+- Pend observation timeout: 45 seconds
+- Parallelism: 10
+- Member seeding: enabled
+- Provider seeding: enabled
+- Source revision for packet: `8d55a38b` (`Fix MCC COB fixture isolation (#858)`)
+- Raw final 50K validator output: `raw-validator-output-50k.txt`
+- Important caveat: these are local validation benchmarks, not production cloud benchmarks
+
+Tenant-state caveat:
+
+The final 50K run used the long-lived local `demo` tenant, not a freshly reset tenant. The raw seeding log shows 49,425 members and 99,956 providers already present before the run, plus 12 existing COB coverage rows. The validator added 448 synthetic members and 448 COB coverage rows for the final 50K run. A clean cluster should reproduce the same workflow logic, but seeding counts and any state-sensitive behavior can differ.
+
+Payment-delta caveat:
+
+`Avg payment delta` is the average absolute difference, for paid claims only, between the adjudication response's `Totals.PlanPayment` and the synthetic corpus answer key's `ExpectedPaidAmount`. In the final 50K raw output it was `$59.36`. Episode 006 workflow scoring validates disposition and workflow outcomes: paid, denied with the expected business reason, pended, unsupported, or platform failure. Payment-amount accuracy is visible as a diagnostic, but it is not yet a pass/fail scoring gate in this packet.
+
+## Current baseline: 5,000-claim breadth validation
+
+This run was completed after PR 856.
+
+The raw console output was not retained as a separate artifact, but the exact command, summary, and scenario table are recorded below.
+
+Run source revision:
+
+- `0c0b8f14` (`Avoid duplicate MCC newborn mother line codes (#856)`)
+
+Command:
+
+```bash
+CLAIMS=5000 MAX_CLAIMS=5000 PARALLELISM=10 PROGRESS_EVERY=500 SEED_MEMBERS=true SEED_PROVIDERS=true PEND_OBSERVATION_ENABLED=true PEND_OBSERVATION_TIMEOUT_SECONDS=45 scripts/run-mcc-local-k8s.sh
+```
+
+Summary:
+
+| Metric | Value |
+| --- | ---: |
+| Claims requested | 5,000 |
+| Claims processed | 5,000 |
+| Paid/adjudicated | 3,958 |
+| Pended | 46 |
+| Business denials | 996 |
+| Platform failures | 0 |
+| Observation timeouts | 0 |
+| Expected-pend observations | 46/46 pended |
+| Workflow checks | 577/650 matched |
+| Mismatches | 0 |
+| Unsupported | 73 |
+| Elapsed | 00:59.731 |
+| Throughput | 83.71 claims/sec |
+| P95 latency | 204 ms |
+| P99 latency | 278 ms |
+
+Business denial breakdown:
+
+| Denial | Count |
+| --- | ---: |
+| CARC_96 | 448 |
+| CARC_18 | 300 |
+| PRIOR_AUTH_REQUIRED | 108 |
+| PROVIDER_EXCLUDED | 100 |
+| NCCI_MUE_EDIT_FAILURE | 24 |
+
+Key matched scenario groups:
+
+| Scenario | Result |
+| --- | ---: |
+| CleanProfessionalPaid | 100/100 matched |
+| ExcludedProviderDenied | 100/100 matched |
+| TxStarInpatientNoAuth | 100/100 matched |
+| UncoveredServiceDenied | 100/100 matched |
+| EdgeCase:NewbornAutoAdjudication | 10/10 matched |
+| EdgeCase:NewbornFirstThirtyDays | 10/10 matched |
+| EdgeCase:NewbornMotherClaimLink | 10/10 matched |
+| EdgeCase:RetroEligibilityTermination | 13/13 matched |
+| EdgeCase:CobSecondaryPayer | 10/10 matched |
+| EdgeCase:CobBirthdayRule | 10/10 matched |
+| EdgeCase:CobGenderRule | 10/10 matched |
+| EdgeCase:PriorAuthRequired_NoAuth | 8/8 matched |
+
+Unsupported scenario groups:
+
+| Scenario | Unsupported |
+| --- | ---: |
+| EdgeCase:BehavioralHealthCarveOut | 10 |
+| EdgeCase:MedicaidSpendDown | 6 |
+| EdgeCase:PriorAuthRequired_ExpiredAuth | 8 |
+| EdgeCase:PriorAuthRequired_WrongProcedure | 8 |
+| EdgeCase:PriorAuthRequired_WrongProvider | 8 |
+| EdgeCase:RetroEligibilityCoverageChange | 13 |
+| EdgeCase:SubrogationAccidentRelated | 7 |
+| EdgeCase:SubrogationThirdPartyLiability | 6 |
+| EdgeCase:SubrogationWorkersComp | 7 |
+
+Interpretation:
+
+The 5K run is the first clean breadth baseline for Episode 006. It is not a final publication headline by itself, but it proves that the broader edge-case scoring path can run with zero mismatches and zero platform failures when unsupported scenarios are separated honestly.
+
+## 10,000-claim breadth validation
+
+This run was completed after the COB fixture-isolation fix and before the clean 50K breadth validation run.
+
+The clean 10K run was part of the post-PR-858 confidence gate. The raw console output was not retained as a separate artifact, but the exact command, summary, and scenario table are recorded below.
+
+Run source revision:
+
+- `8d55a38b` (`Fix MCC COB fixture isolation (#858)`)
+
+Command:
+
+```bash
+CLAIMS=10000 MAX_CLAIMS=10000 PARALLELISM=10 PROGRESS_EVERY=1000 SEED_MEMBERS=true SEED_PROVIDERS=true PEND_OBSERVATION_ENABLED=true PEND_OBSERVATION_TIMEOUT_SECONDS=45 scripts/run-mcc-local-k8s.sh
+```
+
+Summary:
+
+| Metric | Value |
+| --- | ---: |
+| Claims requested | 10,000 |
+| Claims processed | 10,000 |
+| Paid/adjudicated | 7,910 |
+| Pended | 92 |
+| Business denials | 1,998 |
+| Platform failures | 0 |
+| Observation timeouts | 0 |
+| Expected-pend observations | 92/92 pended |
+| Workflow checks | 1,154/1,300 matched |
+| Mismatches | 0 |
+| Unsupported | 146 |
+| Elapsed | 02:08.011 |
+| Throughput | 78.12 claims/sec |
+| P95 latency | 272 ms |
+| P99 latency | 306 ms |
+
+Key matched scenario groups:
+
+| Scenario | Result |
+| --- | ---: |
+| CleanProfessionalPaid | 200/200 matched |
+| ExcludedProviderDenied | 200/200 matched |
+| TxStarInpatientNoAuth | 200/200 matched |
+| UncoveredServiceDenied | 200/200 matched |
+| EdgeCase:NewbornAutoAdjudication | 20/20 matched |
+| EdgeCase:NewbornFirstThirtyDays | 20/20 matched |
+| EdgeCase:NewbornMotherClaimLink | 20/20 matched |
+| EdgeCase:RetroEligibilityTermination | 27/27 matched |
+| EdgeCase:CobSecondaryPayer | 20/20 matched |
+| EdgeCase:CobBirthdayRule | 20/20 matched |
+| EdgeCase:CobGenderRule | 20/20 matched |
+| EdgeCase:PriorAuthRequired_NoAuth | 16/16 matched |
+
+Interpretation:
+
+The post-fix 10K gate passed. The 5K zero-mismatch breadth result held at double the volume, supported COB-pend fixture rows were isolated and seeded one-for-one, expected-pend observation remained reliable, and unsupported scenarios continued to be separated from mismatches.
+
+## Part 6 validation boundary
+
+Part 6 now has 5K, 10K, and 50K breadth validation data.
+
+At publication time, 100K was intentionally out of scope for Part 6. After the clean 50K breadth result, 100K belonged in its own focused milestone article rather than as a late addition to this one. That follow-on milestone was later published in Part 8.
+
+### 50,000-claim breadth validation
+
+Purpose:
+
+- replace the older narrow 50K result with a broader edge-case validation result
+- confirm the Part 6 story scales from breadth smoke to a meaningful local workload
+- provide a direct bridge from Episode 005 throughput work to Episode 006 correctness work
+
+Run source revision:
+
+- `8d55a38b` (`Fix MCC COB fixture isolation (#858)`)
+
+Command:
+
+```bash
+CLAIMS=50000 MAX_CLAIMS=50000 PARALLELISM=10 PROGRESS_EVERY=5000 SEED_MEMBERS=true SEED_PROVIDERS=true PEND_OBSERVATION_ENABLED=true PEND_OBSERVATION_TIMEOUT_SECONDS=45 scripts/run-mcc-local-k8s.sh
+```
+
+Summary:
+
+| Metric | Value |
+| --- | ---: |
+| Claims requested | 50,000 |
+| Claims processed | 50,000 |
+| Paid/adjudicated | 39,581 |
+| Pended | 460 |
+| Business denials | 9,959 |
+| Platform failures | 0 |
+| Observation timeouts | 0 |
+| Expected-pend observations | 460/460 pended |
+| Workflow checks | 5,767/6,500 matched |
+| Mismatches | 0 |
+| Unsupported | 733 |
+| Elapsed | 12:06.089 |
+| Throughput | 68.86 claims/sec |
+| P95 latency | 298 ms |
+| P99 latency | 369 ms |
+| Avg payment delta | $59.36 |
+
+Timing:
+
+| Stage | Avg | P95 |
+| --- | ---: | ---: |
+| Submit | 44 ms | 130 ms |
+| Adjudicate | 66 ms | 115 ms |
+| Writeback | 36 ms | 98 ms |
+| Benefit calculation | 61 ms | 104 ms |
+| Accumulator read | 60 ms | 103 ms |
+
+Business denial breakdown:
+
+| Denial | Count |
+| --- | ---: |
+| CARC_96 | 4,542 |
+| CARC_18 | 3,000 |
+| PRIOR_AUTH_REQUIRED | 1,080 |
+| PROVIDER_EXCLUDED | 1,000 |
+| NCCI_MUE_EDIT_FAILURE | 187 |
+
+Key matched scenario groups:
+
+| Scenario | Result |
+| --- | ---: |
+| CleanProfessionalPaid | 1,000/1,000 matched |
+| ExcludedProviderDenied | 1,000/1,000 matched |
+| TxStarInpatientNoAuth | 1,000/1,000 matched |
+| UncoveredServiceDenied | 1,000/1,000 matched |
+| EdgeCase:NewbornAutoAdjudication | 100/100 matched |
+| EdgeCase:NewbornFirstThirtyDays | 100/100 matched |
+| EdgeCase:NewbornMotherClaimLink | 100/100 matched |
+| EdgeCase:RetroEligibilityTermination | 133/133 matched |
+| EdgeCase:RetroEligibilityAdd | 134/134 matched |
+| EdgeCase:CobBirthdayRule | 100/100 matched |
+| EdgeCase:CobGenderRule | 100/100 matched |
+| EdgeCase:CobMedicareSecondary | 100/100 matched |
+| EdgeCase:CobPrimaryPayer | 100/100 matched |
+| EdgeCase:CobSecondaryPayer | 100/100 matched |
+| EdgeCase:CobTertiaryPayer | 100/100 matched |
+| EdgeCase:MedicaidCHIP | 60/60 matched |
+| EdgeCase:MedicaidDualEligible | 60/60 matched |
+| EdgeCase:MedicaidSSI | 60/60 matched |
+| EdgeCase:MedicaidTANF | 60/60 matched |
+| EdgeCase:BehavioralHealthCarveIn | 100/100 matched |
+| EdgeCase:BehavioralHealthParityCheck | 100/100 matched |
+| EdgeCase:PriorAuthRequired_NoAuth | 80/80 matched |
+| EdgeCase:PriorAuthRequired_AuthOnFile | 80/80 matched |
+
+Unsupported scenario groups:
+
+| Scenario | Unsupported |
+| --- | ---: |
+| EdgeCase:BehavioralHealthCarveOut | 100 |
+| EdgeCase:MedicaidSpendDown | 60 |
+| EdgeCase:PriorAuthRequired_ExpiredAuth | 80 |
+| EdgeCase:PriorAuthRequired_WrongProcedure | 80 |
+| EdgeCase:PriorAuthRequired_WrongProvider | 80 |
+| EdgeCase:RetroEligibilityCoverageChange | 133 |
+| EdgeCase:SubrogationAccidentRelated | 67 |
+| EdgeCase:SubrogationThirdPartyLiability | 66 |
+| EdgeCase:SubrogationWorkersComp | 67 |
+
+Interpretation:
+
+The 50K gate passed cleanly: every claim processed, expected pends were observed through persisted claim status, there were no platform failures, there were no pend observation timeouts, and there were no workflow mismatches.
+
+This run replaced the earlier one-mismatch 50K result after isolating supported COB-pend members by generated claim. The earlier mismatch was a benchmark fixture-isolation issue: expected-pend COB scenarios could share a generated member, so one scenario could miss its own seeded COB row. The clean rerun confirms `EdgeCase:CobSecondaryPayer` at 100/100 matched.
+
+Pend-observation caveat:
+
+The pend-observation pass polls persisted claim status only for scenarios whose answer-key outcome is `Pended`. It proves expected-pend claims persisted as pended. It does not, by itself, detect the inverse error where a claim expected to pay or deny later persists as pended. A future validator enhancement should add an optional persisted-status sweep for non-pend scenarios to detect false pends.
+
+## Later milestone: 100,000 claims
+
+The next publication candidate after Part 6 was a focused 100K milestone.
+
+That article needed to answer a different question: once broader edge-case scoring is established at 50K, how far can the local Kubernetes validation path scale before the next bottleneck appears?
+
+Part 8 now records that answer: a clean 100K local Kubernetes run passed the stronger correctness gates and exposed fixture preparation as the next local scaling bottleneck.
+
+## Correctness framing
+
+Correctness is not the same as payment.
+
+In MCC reporting:
+
+- `Matched` means the actual platform outcome agreed with the answer key.
+- `Mismatched` means the platform produced a scoreable outcome that disagreed with the answer key.
+- `Unsupported` means the answer key expects behavior that is not yet observable or implemented in the validator path.
+- `Platform failure` means the platform failed to submit, adjudicate, or write back a claim.
+
+Unsupported scenarios are honest gaps. They are not successes, and they are not platform failures.
+
+The current unsupported bucket is concentrated in subrogation, prior-authorization edge variants, retroactive coverage change, behavioral health carve-out, and Medicaid spend-down scenarios. Those categories are the next adjudication edit-model roadmap, not hidden successes.
+</pre></details></section>
+<section id="episode-007"><div class="eyebrow">Part 7 · recorded artifact</div><h2>Moving benchmark proof from terminal logs into an operator-facing Mass Adjudication console.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-7-operator-console">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-007/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 007</summary><pre># Episode 007 benchmark and console evidence notes
+
+## Environment
+
+- Environment: local Kubernetes via Docker Desktop
+- Tenant: `demo`
+- Workload: synthetic Million Claim Challenge claim corpus
+- Generator seed: 42
+- Line of business: Medicaid (3)
+- Parallelism: 6
+- Claim count: 5,000
+- Member seeding: enabled
+- Provider seeding: enabled
+- Portal URL during inspection: `http://localhost:5026`
+- Claims-service local tunnel during inspection: `http://localhost:18080`
+- Important caveat: this was a local dashboard evidence run, not a production cloud benchmark
+
+Tenant-state caveat:
+
+The run used a long-lived local demo tenant, not a freshly reset tenant. As with Episode 006, local accumulated state can affect seeding counts, duplicate-detection paths, accumulator state, and hot-path timing.
+
+Payment-delta caveat:
+
+`Avg payment delta` remains diagnostic only. It is not yet a pass/fail amount-level scoring gate. Episode 007 keeps it visible in the console story because disposition-level correctness and payment-amount correctness are related but not identical.
+
+Pend-observation caveat:
+
+Expected-pend observation remains one-directional. It verifies expected-pend claims persisted as pended, but it does not yet sweep expected-pay or expected-deny claims for false pends.
+
+## Fresh 5,000-claim dashboard evidence run
+
+Purpose:
+
+- verify the portal can inspect a freshly published mass adjudication run
+- verify claim-result filtering works for unsupported rows
+- verify the post-PR-875 evidence-first sample path is active
+- provide Part 7 with a current local run after the Mass Adjudication console work
+
+Run:
+
+- Run ID: `b376a131a5de4118a49129fd2449eaee`
+- Job name: `mcc-main875-5k-evidence`
+
+Command:
+
+```bash
+SKIP_BUILD=false CLAIMS=5000 MAX_CLAIMS=5000 PARALLELISM=6 PROGRESS_EVERY=1000 SEED_MEMBERS=true SEED_PROVIDERS=true CLAIMS_SERVICE_BENEFIT_TIMEOUT_SECONDS=15 JOB_NAME=mcc-main875-5k-evidence scripts/run-mcc-local-k8s.sh
+```
+
+Summary:
+
+| Metric | Value |
+| --- | ---: |
+| Claims requested | 5,000 |
+| Claims processed | 5,000 |
+| Paid/adjudicated | 3,852 |
+| Pended | 46 |
+| Business denials | 1,102 |
+| Platform failures | 0 |
+| Observation timeouts | 0 |
+| Workflow checks | 577/650 matched |
+| Workflow mismatches | 0 |
+| Unsupported | 73 |
+| Workflow observation timeouts | 0 |
+| Elapsed | 02:11.910 |
+| Throughput | 37.90 claims/sec |
+| P95 latency | 384 ms |
+| P99 latency | 466 ms |
+| Avg payment delta | $66.90 |
+
+Timing:
+
+| Stage | Avg | P95 |
+| --- | ---: | ---: |
+| Submit | 8 ms | 32 ms |
+| Adjudicate | 143 ms | 375 ms |
+| Writeback | 8 ms | 48 ms |
+| Provider integrity hot path | 136 ms | 371 ms |
+| Benefit calculation | 32 ms | 90 ms |
+
+Business denial breakdown:
+
+| Denial | Count |
+| --- | ---: |
+| PROVIDER_EXCLUDED | 854 |
+| PRIOR_AUTH_REQUIRED | 108 |
+| CARC_96 | 100 |
+| NCCI_MUE_EDIT_FAILURE | 24 |
+| CARC_27 | 13 |
+
+Key matched scenario groups:
+
+| Scenario | Result |
+| --- | ---: |
+| CleanProfessionalPaid | 100/100 matched |
+| ExcludedProviderDenied | 100/100 matched |
+| TxStarInpatientNoAuth | 100/100 matched |
+| UncoveredServiceDenied | 100/100 matched |
+| EdgeCase:CobBirthdayRule | 10/10 matched |
+| EdgeCase:CobGenderRule | 10/10 matched |
+| EdgeCase:CobMedicareSecondary | 10/10 matched |
+| EdgeCase:CobPrimaryPayer | 10/10 matched |
+| EdgeCase:CobSecondaryPayer | 10/10 matched |
+| EdgeCase:CobTertiaryPayer | 10/10 matched |
+| EdgeCase:MedicaidCHIP | 6/6 matched |
+| EdgeCase:MedicaidDualEligible | 6/6 matched |
+| EdgeCase:MedicaidSSI | 6/6 matched |
+| EdgeCase:MedicaidTANF | 6/6 matched |
+| EdgeCase:NewbornAutoAdjudication | 10/10 matched |
+| EdgeCase:NewbornFirstThirtyDays | 10/10 matched |
+| EdgeCase:NewbornMotherClaimLink | 10/10 matched |
+| EdgeCase:PriorAuthRequired_AuthOnFile | 8/8 matched |
+| EdgeCase:PriorAuthRequired_NoAuth | 8/8 matched |
+| EdgeCase:RetroEligibilityAdd | 14/14 matched |
+| EdgeCase:RetroEligibilityTermination | 13/13 matched |
+
+Unsupported scenario groups:
+
+| Scenario | Unsupported |
+| --- | ---: |
+| EdgeCase:BehavioralHealthCarveOut | 10 |
+| EdgeCase:MedicaidSpendDown | 6 |
+| EdgeCase:PriorAuthRequired_ExpiredAuth | 8 |
+| EdgeCase:PriorAuthRequired_WrongProcedure | 8 |
+| EdgeCase:PriorAuthRequired_WrongProvider | 8 |
+| EdgeCase:RetroEligibilityCoverageChange | 13 |
+| EdgeCase:SubrogationAccidentRelated | 7 |
+| EdgeCase:SubrogationThirdPartyLiability | 6 |
+| EdgeCase:SubrogationWorkersComp | 7 |
+
+## Portal verification
+
+Dashboard API:
+
+- `GET http://localhost:18080/api/mass-adjudication/runs?limit=1`
+- Confirmed latest run ID: `b376a131a5de4118a49129fd2449eaee`
+
+Unsupported filter:
+
+- `GET http://localhost:18080/api/mass-adjudication/runs/b376a131a5de4118a49129fd2449eaee/claims?validationStatus=Unsupported&amp;pageSize=5`
+- Returned unsupported claim rows, including:
+  - `MCC-E-0000088`, `EdgeCase:RetroEligibilityCoverageChange`
+  - `MCC-E-0000092`, `EdgeCase:RetroEligibilityCoverageChange`
+  - `MCC-E-0000094`, `EdgeCase:RetroEligibilityCoverageChange`
+  - `MCC-E-0000167`, `EdgeCase:PriorAuthRequired_WrongProcedure`
+  - `MCC-E-0000155`, `EdgeCase:PriorAuthRequired_WrongProvider`
+
+Mismatch filter:
+
+- `GET http://localhost:18080/api/mass-adjudication/runs/b376a131a5de4118a49129fd2449eaee/claims?validationStatus=Mismatched&amp;pageSize=5`
+- Returned zero rows because the run had zero workflow mismatches.
+
+## Implementation provenance
+
+PR #874:
+
+- Added validation-status filtering to mass adjudication claim results.
+- Added unsupported and mismatch options to the portal claim-result filter.
+- Updated throughput labels to `claims/sec`.
+
+PR #875:
+
+- Changed validator claim-result sampling to preserve evidence-critical rows before slowest remaining rows.
+- Priority order: platform failures, observation failures, mismatches, unsupported, then slowest remaining claims.
+- Added deterministic tie-breakers by generated claim ID.
+
+## Interpretation
+
+The fresh 5K run is a console-evidence proof, not a new scale claim.
+
+The key result is that the current portal can now inspect a published mass adjudication run, show human-readable MCC claim IDs, filter unsupported results, preserve mismatch rows when they exist, and keep payment delta visible as an unresolved scoring gate.
+</pre></details></section>
+<section id="episode-008"><div class="eyebrow">Part 8 · recorded artifact</div><h2>How stronger correctness gates reached a clean 100,000-claim run and exposed the next local scaling bottleneck.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-8-clean-100k">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-008/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 008</summary><pre># Episode 008 benchmark results
+
+## Run identity
+
+- Date: July 19, 2026 local time / July 19, 2026 UTC
+- Kubernetes job: `mcc-main-100k-p10-112031`
+- Dashboard run ID: `dd0ebe4979e247bc95a980610de7d0be`
+- Environment: local Docker Desktop Kubernetes
+- Tenant: `demo`
+- Validator seed: 42
+- Claims: 100,000
+- Parallelism: 10
+- Line of business: Medicaid
+- Prior-authorization scenario rate: 2%
+- Pend observation: enabled, 45-second bound, 1-second polling interval
+- Pend diagnostics: disabled
+- Dashboard summary: published
+
+## Command
+
+```text
+JOB_NAME=mcc-main-100k-p10-112031 CLAIMS=100000 MAX_CLAIMS=100000 PARALLELISM=10 PROGRESS_EVERY=10000 SEED_AUTHORIZATIONS=true SKIP_BUILD=true ./scripts/run-mcc-local-k8s.sh
+```
+
+The local wrapper timed out while waiting for the Kubernetes job condition, but the Kubernetes job continued running and completed successfully. The pod exited successfully with 0 restarts, and the validator published the completed dashboard summary.
+
+## Raw artifacts
+
+- `raw-validator-output-post934-100k.txt` - validator console output from the completed post-#934 100K run.
+- `run-summary-post934-100k.json` - completed Mass Adjudication run summary returned by claims-service for the post-#934 100K run.
+- `raw-validator-output-post937-100k-p12.txt` - validator console output from the completed 100K p12 confirmation run.
+- `run-summary-post937-100k-p12.json` - completed Mass Adjudication run summary returned by claims-service for the 100K p12 confirmation run.
+- `raw-validator-output-post937-100k-p16.txt` - validator console output from the completed 100K p16 pressure run.
+- `run-summary-post937-100k-p16.json` - completed Mass Adjudication run summary returned by claims-service for the 100K p16 pressure run.
+- `raw-validator-output-post928-100k.txt` - prior post-#928 100K validator output retained as provenance.
+- `run-summary-post928-100k.json` - prior post-#928 dashboard summary retained as provenance.
+
+## Fixture preparation
+
+- Generated 100,000 MCC claims in memory.
+- Injected 2,000 clean professional paid scenarios.
+- Injected 2,000 excluded-provider denial scenarios.
+- Injected 2,000 uncovered-service denial scenarios.
+- Injected 2,000 TX STAR inpatient no-authorization scenarios.
+- Provider fixture pool: 199,847 provider references reduced to 13,742 distinct NPIs.
+- Provider assignments reused: 186,258.
+- Provider-sensitive claims preserved: 2,800.
+- Seeded 10,614 synthetic members; 88,977 already existed; 99,591 statuses aligned.
+- Seeded 0 COB coverage rows; 920 already existed.
+- Seeded 0 provider networks; 2 already existed.
+- Seeded 13,383 synthetic providers; 359 already existed.
+
+## Correctness result
+
+- Total claims: 100,000
+- Processed: 100,000
+- Paid/adjudicated: 78,842
+- Pended: 924
+- Business denials: 20,234
+- Platform failures: 0
+- Observation timeouts: 0
+- Expected-pend observation: 920 pended, 0 timed out
+- False-pend sweep: 10,934 scoreable non-pend claims, 0 unexpected pends, 2,242 terminal outcomes reconciled
+- Workflow scoring: 11,854/13,000 matched, 0 mismatched, 1,146 unsupported, 0 observation timeouts
+- Payment gate: 2,000/2,000 within $0.01, 0 mismatched
+- Average payment delta: $0.00
+- Maximum payment delta: $0.00
+
+Pend-scope note: the final persisted outcome mix includes 924 pended claims. The expected-pend observer independently verified 920 answer-key pend scenarios as pended. The false-pend sweep then checked 10,934 scoreable expected-pay and expected-deny claims and found 0 unexpected pends. Unsupported scenarios remain outside the scoreable non-pend sweep.
+
+## Performance result
+
+- Timed claim-processing elapsed: 30:05.013
+- Throughput: 55.40 claims/second
+- P95 latency: 324 ms
+- P99 latency: 480 ms
+- Submit average/P95: 67 ms / 194 ms
+- Adjudicate average/P95: 70 ms / 122 ms
+- Writeback average/P95: 45 ms / 101 ms
+- Benefit calculation average/P95: 65 ms / 115 ms
+- Provider integrity average/P95: 3 ms / 2 ms
+- Preparation time: 7:53.368
+- Tracked lifecycle: 38:05.792
+
+## Lifecycle timings
+
+- Service health checks: 0:00.056
+- Reference rule seeding: 0:00.120
+- Validation plan setup: 0:00.018
+- Corpus generation: 0:01.201
+- Fixture normalization: 0:00.327
+- Authorization fixture seeding: 0:00.436
+- Member and coverage seeding: 2:47.051
+- Provider seeding: 5:04.155
+- Timed adjudication: 30:05.013
+- Expected-pend observation: 0:00.765
+- False-pend sweep: 0:06.644
+
+## Business denials
+
+- CARC 96: 9,046
+- CARC 18: 6,000
+- PRIOR_AUTH_REQUIRED: 2,480
+- PROVIDER_EXCLUDED: 2,000
+- NCCI_MUE_EDIT_FAILURE: 394
+- CARC 27: 267
+- SCRUB_VALIDATION_FAILURE: 47
+
+Business denials are valid platform outcomes, not platform failures.
+
+## Unsupported scenarios
+
+- BehavioralHealthCarveOut: 200
+- MedicaidSpendDown: 120
+- PriorAuthRequired_WrongProvider: 160
+- RetroEligibilityCoverageChange: 266
+- SubrogationAccidentRelated: 134
+- SubrogationThirdPartyLiability: 133
+- SubrogationWorkersComp: 133
+
+Total unsupported: 1,146.
+
+Unsupported means the scenario is not currently scoreable through the implemented platform/validator path. It is not counted as matched, mismatched, or a platform failure.
+
+## Matched scenario footprint
+
+- CleanProfessionalPaid: 2,000/2,000 matched
+- ExcludedProviderDenied: 2,000/2,000 matched
+- UncoveredServiceDenied: 2,000/2,000 matched
+- TxStarInpatientNoAuth: 2,000/2,000 matched
+- COB primary, secondary, tertiary, birthday-rule, gender-rule, and Medicare-secondary: 200/200 matched each
+- Newborn auto-adjudication, first-thirty-days, and mother-claim-link: 200/200 matched each
+- Medicaid CHIP, dual-eligible, SSI, and TANF: 120/120 matched each
+- Retro eligibility add and termination: 267/267 matched each
+- Behavioral health carve-in and parity-check: 200/200 matched each
+- Prior-auth required auth-on-file, expired-auth, no-auth, and wrong-procedure variants: 160/160 matched each
+
+## Interpretation
+
+The post-#934 100K correctness gate passed cleanly. All claims processed; the scoreable workflow set produced no mismatches; expected-pend observation produced no timeouts; the non-pend sweep found no unexpected pends; and all 2,000 comparable payments matched within one cent.
+
+Timed adjudication and full tracked lifecycle must remain separate. Timed processing completed in 30:05.013 at 55.40 claims/second. The tracked lifecycle completed in 38:05.792 after preparation, processing, expected-pend observation, and false-pend sweep.
+
+This is local Docker Desktop evidence, not a production-cloud capacity claim. During the run, Docker Desktop showed significant CPU and memory headroom, so the next performance investigation should focus on internal throughput limits: validator parallelism, service concurrency, HTTP client limits, MongoDB/writeback behavior, and disk I/O.
+
+## Post-#937 100K p12 parallelism confirmation
+
+After the p10 100K run, the first controlled parallelism follow-up raised validator parallelism from 10 to 12 while keeping the same seed, claim count, fixture model, payment gate, false-pend sweep, and workflow scoring rules.
+
+- Date: July 19, 2026 local time / July 19, 2026 UTC
+- Kubernetes job: `mcc-main-100k-p12-140034`
+- Dashboard run ID: `918f36d680a84a309b2e35944d5a4b6b`
+- Claims: 100,000
+- Parallelism: 12
+- Validator seed: 42
+- Line of business: Medicaid
+- Prior-authorization scenario rate: 2%
+- Pend observation: enabled, 45-second bound, 1-second polling interval
+- Wrapper timeout: `JOB_TIMEOUT=120m`
+- Dashboard summary: published
+
+```text
+JOB_NAME=mcc-main-100k-p12-140034 CLAIMS=100000 MAX_CLAIMS=100000 PARALLELISM=12 PROGRESS_EVERY=10000 SEED_AUTHORIZATIONS=true JOB_TIMEOUT=120m SKIP_BUILD=false ./scripts/run-mcc-local-k8s.sh
+```
+
+PR #937 made `JOB_TIMEOUT` a first-class runner option after this long-run validation exposed the need for a larger wrapper wait window. The timeout setting affects local orchestration only; it does not change validator scoring or adjudication behavior.
+
+### Post-#937 100K p12 correctness result
+
+- Total claims: 100,000
+- Processed: 100,000
+- Paid/adjudicated: 78,813
+- Pended: 928
+- Business denials: 20,259
+- Platform failures: 0
+- Observation timeouts: 0
+- Expected-pend observation: 920 pended, 0 timed out
+- False-pend sweep: 10,934 scoreable non-pend claims, 0 unexpected pends, 2,064 terminal outcomes reconciled
+- Workflow scoring: 11,854/13,000 matched, 0 mismatched, 1,146 unsupported, 0 observation timeouts
+- Payment gate: 2,000/2,000 within $0.01, 0 mismatched
+- Average payment delta: $0.00
+- Maximum payment delta: $0.00
+
+### Post-#937 100K p12 performance result
+
+- Timed claim-processing elapsed: 28:28.006
+- Throughput: 58.55 claims/second
+- P95 latency: 416 ms
+- P99 latency: 580 ms
+- Submit average/P95: 79 ms / 219 ms
+- Adjudicate average/P95: 75 ms / 183 ms
+- Writeback average/P95: 51 ms / 170 ms
+- Benefit calculation average/P95: 72 ms / 179 ms
+- Preparation time: 5:54.074
+- Tracked lifecycle: 34:29.990
+
+The p12 run preserved the correctness gates and improved throughput from 55.40 to 58.55 claims/second compared with p10. Tail latency moved the other direction: P95 increased from 324 ms to 416 ms and P99 increased from 480 ms to 580 ms. That is the useful signal from this sweep. Higher parallelism helped throughput a little, but the latency curve was already starting to push back.
+
+## Post-#937 100K p16 pressure run
+
+The second controlled follow-up raised validator parallelism from 12 to 16 while preserving the same seed, claim count, fixture model, payment gate, false-pend sweep, and workflow scoring rules.
+
+- Date: July 19, 2026 local time / July 19-20, 2026 UTC
+- Kubernetes job: `mcc-main-100k-p16-161929`
+- Dashboard run ID: `6c0223b957114911931c8472687d496b`
+- Claims: 100,000
+- Parallelism: 16
+- Validator seed: 42
+- Line of business: Medicaid
+- Prior-authorization scenario rate: 2%
+- Pend observation: enabled, 45-second bound, 1-second polling interval
+- Wrapper timeout: `JOB_TIMEOUT=120m`
+- Dashboard summary: published
+
+```text
+JOB_NAME=mcc-main-100k-p16-161929 CLAIMS=100000 MAX_CLAIMS=100000 PARALLELISM=16 PROGRESS_EVERY=10000 SEED_AUTHORIZATIONS=true JOB_TIMEOUT=120m SKIP_BUILD=false ./scripts/run-mcc-local-k8s.sh
+```
+
+### Post-#937 100K p16 correctness result
+
+- Total claims: 100,000
+- Processed: 100,000
+- Paid/adjudicated: 78,721
+- Pended: 922
+- Business denials: 20,357
+- Platform failures: 0
+- Observation timeouts: 0
+- Expected-pend observation: 920 pended, 0 timed out
+- False-pend sweep: 10,934 scoreable non-pend claims, 0 unexpected pends, 2,023 terminal outcomes reconciled
+- Workflow scoring: 11,854/13,000 matched, 0 mismatched, 1,146 unsupported, 0 observation timeouts
+- Payment gate: 2,000/2,000 within $0.01, 0 mismatched
+- Average payment delta: $0.00
+- Maximum payment delta: $0.00
+
+### Post-#937 100K p16 performance result
+
+- Timed claim-processing elapsed: 30:14.613
+- Throughput: 55.11 claims/second
+- P95 latency: 518 ms
+- P99 latency: 683 ms
+- Submit average/P95: 116 ms / 294 ms
+- Adjudicate average/P95: 104 ms / 206 ms
+- Writeback average/P95: 71 ms / 192 ms
+- Benefit calculation average/P95: 102 ms / 201 ms
+- Preparation time: 5:36.195
+- Tracked lifecycle: 35:58.823
+
+The p16 run preserved the correctness gates but lost the p12 throughput gain and increased tail latency. Compared with p12, throughput fell from 58.55 to 55.11 claims/second, P95 increased from 416 ms to 518 ms, and P99 increased from 580 ms to 683 ms. That makes p12 the better local setting for this fixture model, and it argues for service/writeback tuning before any 250K attempt.
+
+## Live-progress caveat
+
+During claim processing, the console can show workflow mismatches before expected-pend observation has reconciled persisted status. In the p10 run, the live console showed 920 workflow mismatches. In the p16 run, the live console showed 320 workflow mismatches mid-run. Both cleared after final scoring; the completed summaries reported 0 workflow mismatches.
+
+The live console should distinguish expected-pend checks awaiting observation from true workflow mismatches. Completed summaries are correct; the issue is in-progress presentation.
+
+## Post-#928 provider-fixture verification
+
+After PR #927 anchored validation providers as run-scoped fixtures, a follow-up 50K run still exposed 10 scoreable `TxStarInpatientNoAuth` mismatches. Those claims expected `PRIOR_AUTH_REQUIRED` but adjudicated as `PROVIDER_EXCLUDED`. Spot checks against provider-service showed the current generated rendering provider record was approved and in-network, which pointed to stale or colliding provider-integrity state around the old synthetic validation-provider NPI family.
+
+PR #928 moved MCC scoreable validation providers into wider, role-separated synthetic NPI namespaces:
+
+- `93...` billing providers
+- `94...` adjudicatable rendering providers
+- `95...` intentionally excluded rendering providers
+
+The post-#928 50K rerun was completed as `mcc-provider-namespace-50k-163946`.
+
+### Post-#928 50K correctness result
+
+- Total claims: 50,000
+- Processed: 50,000
+- Paid/adjudicated: 39,407
+- Pended: 463
+- Business denials: 10,130
+- Platform failures: 0
+- Observation timeouts: 0
+- Expected-pend observation: 460 pended, 0 timed out
+- False-pend sweep: 5,307 scoreable non-pend claims, 0 unexpected pends
+- Workflow scoring: 5,767/6,500 matched, 0 mismatched, 733 unsupported, 0 observation timeouts
+- Payment gate: 1,000/1,000 within $0.01, 0 mismatched
+- Average payment delta: $0.00
+- Maximum payment delta: $0.00
+- `TxStarInpatientNoAuth`: 1,000/1,000 matched
+
+### Post-#928 50K performance result
+
+- Timed claim-processing elapsed: 14:13.279
+- Throughput: 58.60 claims/second
+- P95 latency: 380 ms
+- P99 latency: 515 ms
+- Preparation time: 2:54.130
+- Tracked lifecycle: 17:14.705
+- Provider fixtures created: 7,568
+- Provider fixtures already present: 491
+
+The post-#928 50K run proved the provider-fixture hardening. Later PRs made seeded prior-auth evidence scoreable and normalized provider-exclusion denial labels.
+
+## Post-#934 50K scoring verification
+
+The post-#934 50K rerun was completed as `mcc-main-50k-p10-105103` with dashboard run ID `41301477f0eb437bb6a95bf3bd8d420b`.
+
+- Total claims: 50,000
+- Processed: 50,000
+- Paid/adjudicated: 39,377
+- Pended: 461
+- Business denials: 10,162
+- Platform failures: 0
+- Observation timeouts: 0
+- Expected-pend observation: 460 pended, 0 timed out
+- False-pend sweep: 5,467 scoreable non-pend claims, 0 unexpected pends
+- Workflow scoring: 5,927/6,500 matched, 0 mismatched, 573 unsupported, 0 observation timeouts
+- Payment gate: 1,000/1,000 within $0.01, 0 mismatched
+- Average payment delta: $0.00
+- Maximum payment delta: $0.00
+- Throughput: 59.59 claims/second
+- P95 latency: 318 ms
+- P99 latency: 415 ms
+
+The post-#934 50K run proved the prior-auth and provider-exclusion scoring fixes. The 100K run above proves the same hardened scoring model at the next scale.
+</pre></details></section>
+<section id="episode-009"><div class="eyebrow">Part 9 · recorded artifact</div><h2>How prior-auth wrong-provider and behavioral-health scenarios moved from unsupported to deliberately scored platform behavior.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-9-from-unsupported-to-scored">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-009/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 009</summary><pre># Episode 009 benchmark results
+
+STATUS: EVIDENCE RECORDED — CLEAN. The final 100K p12 confirmation run is complete and matches the Part 8 bar exactly: zero platform failures, zero scoreable workflow mismatches, zero unexpected pends, every comparable payment within one cent. Getting here took four PRs, not one — see &quot;Fix history&quot; below for the full hunt. Raw artifacts are committed alongside this file.
+
+## Fix history
+
+Four confirmation attempts, three real defects found and fixed. None were COB logic bugs, despite three of the four rounds surfacing as COB-scenario mismatches.
+
+**Round 1 — #950 alone.** 7,178/13,000 matched (5,036 mismatched), worse than the Part 8 baseline (11,854/13,000). Root-caused to two issues, both fixed by PR #954 (`mcc-plan-specific-service-category-overrides`):
+
+1. A pre-existing, unrelated tenant-data conflict: the `demo` tenant already had BP 5.6 system-default service-category mappings applied (descriptive string categories like `&quot;Office Visit&quot;`), seeded at some earlier point outside any MCC PR. These shadowed the validation plan's numeric benefit categories (`&quot;98&quot;`/`&quot;73&quot;`/`&quot;48&quot;`) in the resolver's tenant-default lookup, misrouting most claims — including simple `CleanProfessionalPaid` — to CARC 96 &quot;no benefit configured&quot; denials.
+2. A regression #950 introduced itself: adding a covered Behavioral Health benefit to the validation plan (to fix `BehavioralHealthCarveIn`/`ParityCheck`) broke `BehavioralHealthCarveOut`, which draws from the same CPT code family and started resolving to the same now-covered category instead of denying.
+
+Fixed by seeding plan-specific `ServiceCategoryMapping` overrides scoped to the validation plan (plan-specific mappings win over tenant defaults in the resolver), and by tagging the forced carve-out claim with a synthetic modifier so a second, deliberately-uncovered plan override intercepts only that claim.
+
+**Round 2 — post-#950/#954.** 12,182/13,000 matched, 32 mismatched — short of the 12,214 target, all in `CobBirthdayRule` / `CobGenderRule` / `CobSecondaryPayer` / `CobTertiaryPayer` / `MedicaidDualEligible` / a couple of unrelated scenarios. Recorded at the time as &quot;out of scope, follow-up&quot; (see the git history of this file). It wasn't a COB bug: `EnsureProviderNetworkParticipationAsync` in the validator treated any `409` from `POST {id}/network-participations` as &quot;already participates&quot; and moved on. Provider-service actually rejects that write with `409` whenever the provider is Active — mutations require an amend-to-Draft flow — and no endpoint existed to populate an amended Draft's contents before activating it. Providers that went Active before #949 introduced tenant-scoped network IDs could never receive the new network-scoped participation, so `NetworkCredentialingStage`'s `FailClosed` default correctly denied claims against a network those providers were never actually registered under. COB claims lost their otherwise-correct `Pend` outcome to that unrelated `Deny` under normal Deny-beats-Pend precedence. Fixed by PR #956: `AddNetworkParticipation` is now self-healing (amend Active providers into a Draft, edit, activate, in one call).
+
+**Round 3 — post-#950/#954/#956.** 12,150/13,000 matched, 64 mismatched — COB fully clean this time (every COB/Medicaid/behavioral-health/prior-auth scenario 100%), but a *new*, unrelated scenario broke: `ExcludedProviderDenied`, 1,936/2,000. Same shape of bug, different surface: `MccProviderFixturePool.BuildRunScopedNpi` mints run-scoped provider NPIs from a value space that isn't infinite, and this cluster accumulates providers across many runs over time. A run-scoped NPI collided with a provider created weeks earlier by an unrelated run; `SeedProvidersAsync` treated it as &quot;already exists&quot; and never verified the existing record's exclusion fields. The adjudication-path integrity gate (`HttpProviderIntegrityGate`) reads `Provider.IntegrityScore`/`IntegrityRating` directly as its source of truth — not `CredentialingStatus` — so the collided provider's stale &quot;Clear&quot;/96 rating meant claims that should have denied were paying instead. Fixed by PR #958: `EnsureProviderExclusionAsync` verifies and corrects the existing record's integrity fields on every excluded-provider fixture claim, using the same self-healing amend pattern extended to the general `UpdateProvider` endpoint.
+
+**Round 4 — post-#950/#954/#956/#958.** Clean. See below.
+
+Also required before any of these runs: `claims-service`, `benefit-plan-service`, `authorization-service`, and `provider-service` were rebuilt from current `main` — the cluster's long-lived images predated several of the capabilities each round depended on (#946's authorization-service provider-enforcement check, #936/#941's pend-observation telemetry, and eventually #956/#958's provider-service self-healing itself).
+
+## Run identity
+
+- Date: 2026-07-21 09:06:04 PDT / 2026-07-21T16:06:04Z through 2026-07-21T17:15:28Z
+- Kubernetes job: `mcc-part9-final2-100k-090601`
+- Dashboard run ID: `d114ff66f4924e2094dd9bf34362b7f0`
+- Validation benefit plan: `c98dcf94-5090-4e3e-86a8-56a81f2fbd43`
+- Environment: local Docker Desktop Kubernetes (`kind` cluster `docker-desktop`)
+- Tenant: `demo`
+- Validator seed: 42
+- Claims: 100,000
+- Parallelism: 12
+- Line of business: Medicaid
+- Prior-authorization scenario rate: 2%
+- Pend observation: enabled, 45-second bound, 1-second polling interval
+- Service-category admin write gate: enabled (default in the local runner since #949)
+- Wrapper timeout: `JOB_TIMEOUT=60m` (the wrapper's own `kubectl wait` timed out at 60m due to one-time provider-healing overhead — see &quot;Performance result&quot; — the underlying Kubernetes Job continued and completed at 69m; only the wrapper's convenience log-tail was lost, not the run)
+- Dashboard summary: published
+
+## Command
+
+```text
+JOB_NAME=mcc-part9-final2-100k-090601 CLAIMS=100000 MAX_CLAIMS=100000 PARALLELISM=12 PROGRESS_EVERY=10000 SEED_AUTHORIZATIONS=true JOB_TIMEOUT=60m SKIP_BUILD=true ./scripts/run-mcc-local-k8s.sh
+```
+
+The run must be executed from a checkout that includes PR #950, #954, #956, and #958 so the prior-auth provider-enforcement probe, the behavioral-health service-category mapping seed, the validation-plan behavioral-health benefit, the plan-specific service-category overrides, and both provider-service self-healing fixes are all active. `claims-service`, `benefit-plan-service`, `authorization-service`, and `provider-service` must be running images built from that same checkout.
+
+## Raw artifacts
+
+- `raw-validator-output-post950-100k-p12.txt` - validator console output from the completed, clean confirmation run (job `mcc-part9-final2-100k-090601`).
+- `run-summary-post950-100k-p12.json` - completed Mass Adjudication run summary returned by claims-service (run id `d114ff66f4924e2094dd9bf34362b7f0`), including the full business-denial and per-scenario workflow breakdowns.
+
+(Filenames retained from the original post-#950 evidence slot rather than renamed per round — the git history above carries the round-by-round story; these two files are the final, superseding record.)
+
+## Scoring-surface change under test
+
+The answer key expanded between the Part 8 runs and this run. The corpus mix, seed, and claim count are unchanged.
+
+Newly scoreable scenarios:
+
+- `PriorAuthRequired_WrongProvider` (160 checks at 100K): expected business denial, scored only when the validator's runtime probe confirms authorization-service rejects wrong-provider authorization use (#946, #950). Result: probe reported **enforced**; 160/160 matched.
+- `BehavioralHealthCarveOut` (200 checks at 100K): expected CARC 96 non-covered-service denial via deterministic psychotherapy claim normalization and the tenant-scoped behavioral-health service-category mapping (#947, #949), routed through a plan-specific carve-out exclusion override (#954). Result: 200/200 matched.
+
+Re-scored through a corrected path:
+
+- `BehavioralHealthCarveIn` and `BehavioralHealthParityCheck` (200 checks each at 100K): expected paid, now resolved through the behavioral-health benefit category added to the MCC validation plan (#950) via a plan-specific service-category override (#954). Result: 200/200 matched, both.
+
+Versus the Part 8 p12 baseline:
+
+- Workflow matched: 11,854/13,000 -&gt; **12,214/13,000** (target met exactly)
+- Unsupported: 1,146 -&gt; **786** (target met exactly: RetroEligibilityCoverageChange 266, MedicaidSpendDown 120, SubrogationAccidentRelated 134, SubrogationThirdPartyLiability 133, SubrogationWorkersComp 133)
+- False-pend sweep scope: 10,934 -&gt; **11,294** scoreable non-pend claims (target met exactly)
+- Mismatched: 0 (target was 0 — met, after three rounds of fixes)
+
+## Correctness result
+
+- Total claims: 100,000
+- Processed: 100,000
+- Paid/adjudicated: 82,070
+- Pended: 920
+- Business denials: 17,010
+- Platform failures: 0
+- Observation timeouts: 0
+- Expected-pend observation: 920 pended, 0 timed out (target 920/920 — met exactly)
+- False-pend sweep: 11,294 scoreable non-pend claims, 0 unexpected pends, 2,438 terminal outcomes reconciled
+- Workflow scoring: **12,214/13,000 matched, 0 mismatched**, 786 unsupported, 0 observation timeouts
+- Prior-auth provider-enforcement probe: **enforced**
+- Payment gate: 2,000/2,000 within $0.01, 0 mismatched
+- Average payment delta: $0.00
+- Maximum payment delta: $0.00
+
+Every acceptance-bar criterion from the original Part 9 gate is met exactly: 100,000 processed with zero platform failures, zero scoreable workflow mismatches, 920/920 expected-pend observed with zero unexpected pends elsewhere, and 2,000/2,000 comparable payments within one cent.
+
+## Performance result
+
+- Timed claim-processing elapsed: 1:03:26 (the summary's short-format &quot;Elapsed&quot; line prints `03:26.036`, dropping the leading hour digit — a display-only quirk; `Lifecycle.Timed adjudication` below and the throughput math both confirm the true duration)
+- Throughput: 26.27 claims/second (Part 8 p12 baseline: 58.55)
+- P95 latency: 895 ms (baseline 416 ms)
+- P99 latency: 1,096 ms (baseline 580 ms)
+- Submit average/P95: 233 ms / 500 ms
+- Adjudicate average/P95: 114 ms / 298 ms
+- Writeback average/P95: 111 ms / 280 ms
+- Benefit calculation average/P95: 113 ms / 293 ms
+- Preparation time: 5:51.202
+- Tracked lifecycle: 1:09:24 (health checks 0:00.043, reference rule seeding 0:00.047, validation plan setup 0:00.016, corpus generation 0:00.850, fixture normalization 0:00.377, authorization fixture seeding 0:00.542, member/coverage seeding 2:32.540, provider seeding 3:16.784, timed adjudication 1:03:26, expected-pend observation 0:00.660, false-pend sweep 0:06.195)
+
+This is the one place this run does **not** match baseline, and it is called out honestly rather than smoothed over: throughput dropped to roughly 45% of the Part 8 p12 baseline, and P95/P99 latency roughly doubled. The cause is understood and one-time, not a standing regression — this run was the first to exercise both #956's and #958's self-healing amend-to-Draft-and-activate paths at scale, and thousands of legacy providers accumulated across many prior sessions on this long-lived local tenant needed healing simultaneously (each correction costs several sequential provider-service writes instead of one). Providers stay healed once corrected; a repeat run against the same tenant should not pay this cost again. Confirming that is a natural next check before citing this throughput number as representative, rather than a one-time-migration artifact.
+
+## Business denials
+
+- CARC_96: 9,380
+- PRIOR_AUTH_REQUIRED: 2,640
+- CARC_18: 2,280
+- PROVIDER_EXCLUDED: 2,000
+- NCCI_MUE_EDIT_FAILURE: 396
+- CARC_27: 267
+- SCRUB_VALIDATION_FAILURE: 47
+
+Total: 17,010, reconciling exactly against the correctness result above. `PROVIDER_EXCLUDED` landing at exactly 2,000 (matching all 2,000 `ExcludedProviderDenied` fixture claims one-for-one) is itself evidence #958's fix worked — the prior round's collision-affected claims paid instead of denying, undercounting this code.
+
+## Unsupported scenarios
+
+- RetroEligibilityCoverageChange: 266
+- MedicaidSpendDown: 120
+- SubrogationAccidentRelated: 134
+- SubrogationThirdPartyLiability: 133
+- SubrogationWorkersComp: 133
+- Total: 786, matching the projection exactly.
+
+Unsupported means the scenario is not currently scoreable through the implemented platform/validator path. It is not counted as matched, mismatched, or a platform failure.
+
+## Interpretation rules for this run
+
+- Distinguish platform failures from business dispositions.
+- Do not count unsupported scenarios as passes.
+- Report the prior-auth enforcement probe outcome explicitly; if the probe reports no enforcement, `PriorAuthRequired_WrongProvider` stays unsupported and that is the honest result. (This run: enforced.)
+- Keep timed adjudication separate from the tracked lifecycle.
+- This is local Docker Desktop Kubernetes evidence, not a production capacity claim.
+- A slow or degraded run is still reported as slow or degraded, even when correctness is clean — see &quot;Performance result&quot; above.
+</pre></details></section>
+<section id="episode-010"><div class="eyebrow">Part 10 · recorded artifact</div><h2>Testing Part 9's unconfirmed migration-cost theory at 250,000 claims, finding the real causes through profiling, and confirming a 3.5x throughput gain.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-10-the-migration-cost-that-wasnt">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-010/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 010</summary><pre># Episode 010 benchmark results
+
+STATUS: EVIDENCE RECORDED — CLEAN. The 250,000-claim p56 confirmation run is complete: zero platform failures, zero scoreable workflow mismatches, zero unexpected pends, every comparable payment within one cent — the same bar Part 8 and Part 9 set, now at 2.5x Part 9's scale. Getting a clean run took three attempts, not one, and the performance story required a full profiling pass before any of them ran — see &quot;Fix history&quot; below for the full hunt. Raw artifacts are committed alongside this file.
+
+## Fix history
+
+Part 9 closed with an open question: was the 26.27 claims/sec throughput its confirmation run recorded — against a 58.55 claims/sec baseline — a one-time provider-healing migration cost, or a standing tax? The honest answer is neither. It was masking three real, fixable bottlenecks that a repeat run at the same parallelism would have paid again, indefinitely, and profiling found none of them where the &quot;migration cost&quot; theory pointed.
+
+**Baseline run — p28, no tuning.** Job `mcc-p28-250k-122915`, 250,000 claims, unmodified `main`. Correctness was clean on the first attempt — 30,534/32,500 matched, 0 mismatched, 1,966 unsupported, every original acceptance-bar criterion met. Throughput was 41.43 claims/sec, P95 1,091 ms, P99 1,327 ms. No self-healing migration was needed this time (provider seeding took 6:56, member seeding 15:07, both on the unparallelized code path) — meaning the slowdown wasn't the one-time cost Part 9 suspected. It was something else, and profiling was the only way to find out what.
+
+**Profiling, not guessing.** Per-stage timing from the baseline run pointed at two adjudication substeps: `accumulatorRead` at 192 ms avg / 378 ms P95 — essentially all of the adjudicate phase's cost, against 1-2 ms for `accumulatorWrite` and ~0 ms for every other substep — and `Submit` itself, at 329 ms avg, the single largest per-claim cost of all. Root cause for `accumulatorRead`: the runtime accumulator path is Redis-backed and normally sub-millisecond, but every MCC claim is for a member seen for the first time in a synthetic corpus, so the cache is always cold — every claim's first read fell back to a synchronous cross-pod HTTP call to claims-service plus a Mongo aggregation. Separately, checking `cgroup cpu.stat` inside the live pods found real, severe CPU throttling: claims-service at 81.3% of scheduling periods throttled (62,127s of cumulative throttled time against 6,327s of actual usage), provider-service at 9.5%, benefit-plan-service climbing to 14.5-23% under active load — all three capped at the same `500m` limit regardless of how much load each actually carried, on an 18-core node that was never more than ~25% utilized at the node level. A third bottleneck surfaced once the first two were fixed and could no longer hide it: `ncci`'s lookup cache carried a 10-minute TTL, far shorter than a real run's duration, forcing needless re-fetches of the same (code-pair, service-date) combinations throughout a long run.
+
+Four fixes shipped from this profiling pass, each validated on live 5,000-claim smoke tests before being trusted at scale:
+
+- **PR #961** — parallelized `SeedProvidersAsync` and `SeedMembersAsync` (previously sequential `foreach` loops making one HTTP round-trip chain per record) and added periodic in-place progress output, since seeding had been a silent, unbounded-duration phase on large runs.
+- **PR #967** — added `WarmAccumulatorCacheAsync`, called once per member during seeding: a `POST` to benefit-plan-service's `calculate-benefits` endpoint with an empty `Lines` array, reaching the accumulator-read step (which populates Redis on cache miss, including an explicit &quot;empty&quot; marker for members with no claim history) before the &quot;no lines&quot; guard short-circuits pricing — the cheapest call that still warms the cache.
+- **PR #968** — raised CPU limits on the three throttled services (`claims-service` 500m→2000m, `provider-service` 500m→1000m, `benefit-plan-service` 500m→1500m), matched to the throttling evidence.
+- **PR #969** — extended `NcciLookupCache`'s TTL from 10 minutes to 6 hours. NCCI/MUE reference data is quarterly (CMS cadence) and explicit updates already bypass the TTL via `ImportQuarterlyUpdateAsync` → `InvalidateTenant`, so a long TTL only removes needless re-fetches, not real staleness protection.
+
+Combined, a 5,000-claim/p28 smoke test went from 92.73 to 203.80 claims/sec — before the confirmation run had even started.
+
+**Round 1 — first p56/250K confirmation, post-perf-fixes.** Job `mcc-p56-250k-final-194533`, run id `46ebca58922344608e4d7e8ae81e626c`. Throughput: 147.12 claims/sec, 3.55x the baseline. But 5 of 32,500 workflow checks failed (2 mismatched, 3 observation timeouts), scattered across scenarios with no shared business logic — `BehavioralHealthCarveIn`, `BehavioralHealthCarveOut`, `RetroEligibilityAdd`, `RetroEligibilityTermination` — yet all five shared the same `businessDenialCode` (`PROVIDER_EXCLUDED`) and elevated `providerIntegrity` latency (216-344 ms vs. the typical &lt;50 ms). Root cause: benefit-plan-service's `HttpProviderIntegrityGate` falls back to a live NPPES-registry check (`provider-verification-service`) whenever a provider's `lastVerifiedAt` ages past its 7-day `StalenessFallbackThreshold`. MCC's synthetic provider NPIs were never real NPPES-registered numbers, so that live check always answers `NPI_NOT_FOUND` — wrongly denying claims for providers that needed to stay Clear. `lastVerifiedAt` is only ever set once, at provider creation; on this long-lived, heavily reused tenant, most seeding passes found the provider already correct and skipped writing entirely, letting the timestamp age past the threshold across days of testing. Fixed by PR #970: refresh `lastVerifiedAt`/`nextVerificationDue` on every seeding pass, independent of whether credentialing/exclusion fields need correcting, well inside the staleness window.
+
+**Round 2 — second p56/250K confirmation, post-#970.** Job `mcc-p56-250k-clean-204655`, run id `2b89e4b881ba4da187ba84bada4e93aa`. Throughput: 141.54 claims/sec. But 80 of 32,500 workflow checks mismatched — 79 in `ExcludedProviderDenied` alone (4,921/5,000), 1 in `MedicaidSSI` — and P99 latency spiked to 3,806 ms against a P95 of only 594 ms, a tail-latency signature distinct from Round 1's scattered pattern. Every sampled mismatch showed the correct, freshly-refreshed provider data in provider-service (`lastVerifiedAt` set moments before adjudication, `integrityRating: Blocked` as expected) — ruling out staleness. The real cause: benefit-plan-service logged 30 &quot;Provider service unreachable&quot; warnings across its three pods during the run's 29-minute sustained load window — `provider-service`, still a single replica even after its CPU limit was raised, was dropping connections under real p56 concurrency. Each dropped connection forces the same live NPPES fallback Round 1 hit, this time via a different trigger. That fallback also has a genuine, separate bug: the live verification service's `&quot;Failed&quot;` status (returned for any not-found NPI) silently maps to *not excluded* in `HttpProviderIntegrityGate`'s status mapping, rather than being treated as a denial/review case — so a bare connection hiccup could turn into a wrongly-paid claim. Fixed the trigger only: PR #971 scaled `provider-service` to 2 replicas, matching `claims-service`'s existing pattern. The status-mapping bug itself is disclosed here, not fixed — it's adjudication-safety logic that deserves its own review, not a reflexive patch alongside an infrastructure fix.
+
+**Round 3 — third p56/250K confirmation, post-#971.** Clean. See below.
+
+## Run identity
+
+- Kubernetes job: `mcc-p56-250k-final3-072830`
+- Dashboard run ID: `7da97a69ef424de4b895d39dd4752835`
+- Started: 2026-07-22T14:28:33Z, completed: 2026-07-22T15:52:11Z (1h23m38s total wall time)
+- Environment: local Docker Desktop Kubernetes (`kind` cluster `docker-desktop`)
+- Tenant: `demo`
+- Validator seed: 42
+- Claims: 250,000
+- Parallelism: 56
+- Line of business: Medicaid
+- Prior-authorization scenario rate: 2%
+- Pend observation: enabled, 45-second bound, 1-second polling interval
+- Dashboard summary: published
+
+## Command
+
+```text
+JOB_NAME=mcc-p56-250k-final3-072830 CLAIMS=250000 MAX_CLAIMS=250000 PARALLELISM=56 PROGRESS_EVERY=10000 JOB_TIMEOUT=300m SKIP_BUILD=true ./scripts/run-mcc-local-k8s.sh
+```
+
+The run must be executed from a checkout that includes PR #961, #967, #968, #969, #970, and #971 so seeding parallelism, accumulator cache warming, the corrected CPU limits, the extended NCCI TTL, provider verification freshness, and the provider-service replica count are all active. `claims-service`, `benefit-plan-service`, `provider-service`, and `authorization-service` must be running images/configuration built from that same checkout, and `benefit-plan-service` should be freshly restarted before the run to clear any per-pod integrity-cache state accumulated by prior sessions.
+
+## Raw artifacts
+
+- `raw-validator-output-250k-p56.txt` - validator console output from the completed, clean confirmation run (job `mcc-p56-250k-final3-072830`).
+- `run-summary-250k-p56.json` - completed Mass Adjudication run summary returned by claims-service (run id `7da97a69ef424de4b895d39dd4752835`), including the full business-denial and per-scenario workflow breakdowns.
+
+## Scoring-surface change under test
+
+None. The answer key, corpus mix, seed, and claim-count ratio are unchanged from Part 9 — this episode is a pure scale-and-performance rung, not a scoring-surface expansion. The workflow-matched target carries forward unchanged at 2.5x volume: 12,214/13,000 at 100K scales to 30,534/32,500 at 250K (98.11 checks per 100 claims, exactly Part 9's ratio), and unsupported scales from 786 to 1,966 the same way.
+
+## Correctness result
+
+- Total claims: 250,000
+- Processed: 250,000
+- Paid/adjudicated: 205,291
+- Pended: 2,304
+- Business denials: 42,405
+- Platform failures: 0
+- Observation timeouts: 0
+- Workflow scoring: **30,534/32,500 matched, 0 mismatched**, 1,966 unsupported, 0 observation timeouts
+- Payment gate: 5,000/5,000 within $0.01, 0 mismatched, $0.00 average delta, $0.00 maximum delta
+
+Every acceptance-bar criterion from the original gate is met exactly, at 2.5x the scale Part 9 confirmed: 250,000 processed with zero platform failures, zero scoreable workflow mismatches, and 5,000/5,000 comparable payments within one cent.
+
+## Performance result
+
+- Timed claim-processing elapsed: 28:43.639
+- Throughput: 145.04 claims/second (baseline before this episode's fixes: 41.43 — a **3.5x** improvement)
+- P95 latency: 604.53 ms
+- P99 latency: 831.68 ms
+- Submit average/P95: 168.48 ms / 306.58 ms
+- Adjudicate average/P95: 130.90 ms / 289.20 ms
+- Writeback average/P95: 87.70 ms / 191.30 ms
+- Preparation time: 9:47.689
+- Tracked lifecycle: health checks 0:00.058, reference rule seeding 0:00.125, validation plan setup 0:00.089, corpus generation 0:02.373, fixture normalization 0:00.817, authorization fixture seeding 0:01.705, member/coverage seeding 6:23.493, provider seeding 3:19.030, timed adjudication 28:43.639, expected-pend observation 0:00.750, false-pend sweep 0:07.927
+- Fixture pool: 30,087 distinct providers (29,733 created this run, 354 already present), 247,585 members status-aligned (27,034 created, 220,551 already present)
+
+Unlike Part 9, this run's performance result is a clean win, not an open question. The 3.5x throughput gain came entirely from the profiling-driven fixes above (accumulator cache warming, CPU limit correction, NCCI TTL extension, seeding parallelism) — none of it depended on providers being &quot;already healed&quot; from a prior run, and none of it is expected to regress on a repeat run against a cold tenant. Preparation time itself dropped from 22:08 (baseline) to 9:47.
+
+## Business denials
+
+- CARC_96: 23,469
+- PRIOR_AUTH_REQUIRED: 6,600
+- CARC_18: 5,592
+- PROVIDER_EXCLUDED: 5,000
+- NCCI_MUE_EDIT_FAILURE: 960
+- CARC_27: 667
+- SCRUB_VALIDATION_FAILURE: 116
+- ADJUDICATION_DENIAL: 1
+
+Total: 42,405, reconciling exactly against the correctness result above. `PROVIDER_EXCLUDED` landing at exactly 5,000 (matching all 5,000 `ExcludedProviderDenied` fixture claims one-for-one) is itself evidence #970's and #971's fixes held at scale — Round 2's collision-affected claims paid instead of denying, undercounting this code by 79.
+
+## Unsupported scenarios
+
+Unchanged from Part 9's proportions, scaled to 250K: 1,966 total, matching the projection exactly (RetroEligibilityCoverageChange, MedicaidSpendDown, and the three Subrogation variants). These remain visible product gaps awaiting their own deliberate conversion work — this episode did not touch the scored surface.
+
+## Interpretation rules for this run
+
+- Distinguish platform failures from business dispositions.
+- Do not count unsupported scenarios as passes.
+- Keep timed adjudication separate from the tracked lifecycle.
+- This is local Docker Desktop Kubernetes evidence, not a production capacity claim.
+- A slow or degraded run is still reported as slow or degraded, even when correctness is clean — Rounds 1 and 2 above are not smoothed over into the final clean number.
+- A known, unfixed bug found along the way is disclosed rather than silently deferred: `HttpProviderIntegrityGate`'s live-fallback status mapping treats `&quot;Failed&quot;` as *not excluded* rather than as a denial/review case. This episode fixed the trigger (provider-service capacity) that made it visible, not the mapping logic itself.
+</pre></details></section>
+<section id="episode-011"><div class="eyebrow">Part 11 · recorded artifact</div><h2>Re-investigating a bug Part 10 disclosed but didn't fix, and finding federal provider-exclusion screening had never been wired into the real adjudication pipeline at all.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-11-the-check-that-only-ran-in-the-benchmark">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-011/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 011</summary><pre># Episode 011 benchmark results
+
+STATUS: EVIDENCE RECORDED — CLEAN, NOT A SCALE RUN. This episode fixes an adjudication-safety gap disclosed in Part 10 and closes a materially larger gap found while investigating it. There is no 250,000-claim confirmation run here — the evidence is a targeted 500-claim smoke test through claims-service's real, async orchestrated pipeline (not the standalone benchmark endpoint every prior episode's numbers were measured against), confirming the new stage fires correctly with zero unintended side effects. Raw artifacts are committed alongside this file.
+
+## Fix history
+
+Part 10 disclosed, but explicitly did not fix, a defect in `HttpProviderIntegrityGate`'s handling of a live verification `&quot;Failed&quot;` status. Part 11 opened that investigation and found the disclosed theory didn't hold: `AdjudicationController.Adjudicate` branches on the gate's `Passed` field, not `IsExcluded`, and `Passed` already came back `false` for a `&quot;Failed&quot;` status through that caller. The specific mapping Part 10 named wasn't producing a wrong-payment bug through the code path Part 10 was looking at.
+
+**Bug 1 — the gate's real fail-open path.** `HttpProviderIntegrityGate.Passthrough()` (the result returned when both `provider-service` and the live `provider-verification-service` are unreachable) defaulted to `Passed = true`. Total unavailability was being treated as a confirmed clean result. Fixed by replacing every passthrough return with either a confirmed answer or a new `RequiresManualReview = true` result, distinct from a confirmed exclusion. A live `&quot;Failed&quot;` or `&quot;ManualReviewRequired&quot;` verification status now also resolves to `RequiresManualReview`, not a silent pass.
+
+**Bug 2 — the check was never reachable from a real claim.** Tracing every caller of `IProviderIntegrityGate` found exactly one: `AdjudicationController.Adjudicate`, the standalone synchronous endpoint this series' own MCC validator calls directly. Claims-service's real production pipeline, `ClaimAdjudicationOrchestrator` — the pipeline every throughput and correctness number in this series has been measured against — never called it. `BenefitCalculationStage` calls `calculate-benefits`, which by design has never touched provider integrity, since that endpoint is also used by side-effect-free portal/preview features. Every `ExcludedProviderDenied` result this series has reported, including Part 10's clean 5,000/5,000, was scored against the benchmark's own synchronous call — not against what the orchestrator actually decided, because the orchestrator was never asked. Fixed by adding a new side-effect-free `GET /api/v1/adjudication/provider-integrity/{npi}` endpoint on benefit-plan-service and a new `ProviderIntegrityStage` (`Order=150`) in claims-service's orchestrator that calls it — Deny on a confirmed exclusion, Pend (`MEDREVIEW`, an existing pend code) on anything unresolved, including a transport failure reaching benefit-plan-service itself.
+
+**Bug 3 — found by code review, fixed before merge.** Once the gate started returning `Passed = false` for both a confirmed exclusion and an unresolved review case, `AdjudicationController.Adjudicate` was still reporting every `!Passed` result as `PROVIDER_EXCLUDED` — an outage or an inconclusive verification would have been denied as if the provider had actually appeared on a federal exclusion list, the opposite of this episode's intent. Fixed by checking `IsExcluded` explicitly before falling through to the general not-passed case. Four new controller tests cover confirmed exclusion, review-required, unavailable, and a defensive all-false result.
+
+PR #974 shipped all three fixes, plus the new stage, client, and endpoint, plus updated architecture docs (`claim-adjudication-pipeline.md`, `integrity-score-consumption.md`).
+
+## Run identity — verification smoke test
+
+- Kubernetes job: `mcc-pi-smoke`
+- Environment: local Docker Desktop Kubernetes (`kind` cluster `docker-desktop`)
+- Images: `cloudhealthoffice-claims-service:pi-09976edb`, `cloudhealthoffice-benefit-plan-service:pi-09976edb` — both built from `main` at commit `09976edb`, the PR #974 merge commit
+- Tenant: `demo`
+- Validator seed: 100
+- Claims: 500
+- Parallelism: 10
+- Purpose: confirm `ProviderIntegrityStage` fires correctly inside the real, async `ClaimAdjudicationOrchestrator` — not a scale or throughput measurement
+
+## Command
+
+```text
+NAMESPACE=cloudhealthoffice JOB_NAME=mcc-pi-smoke CLAIMS=500 SEED=100 PARALLELISM=10 JOB_TIMEOUT=15m ./scripts/run-mcc-local-k8s.sh
+```
+
+## What this run actually exercises
+
+`POST /api/v1/claims` — the call that triggers `ClaimAdjudicationOrchestrator` — is the same call this series' own MCC validator already makes before it separately calls the standalone benchmark endpoint. A normal validator run exercises both paths in the same pass. This run's 500 claims included the validator's ten seeded `ExcludedProviderDenied` fixture claims (rendering provider `CredentialingStatus: Excluded`).
+
+## Result — synchronous benchmark side (unchanged from Part 10's bar)
+
+- Total claims: 500
+- Processed: 500
+- Paid/adjudicated: 410
+- Pended: 4
+- Business denials: 86
+- Platform failures: 0
+- Workflow scoring: **62/65 matched, 0 mismatched**, 3 unsupported, 0 observation timeouts
+- Payment gate: 10/10 within $0.01, exact
+- `ExcludedProviderDenied`: **10/10 matched** — confirms the Bug 3 controller fix did not regress the standalone endpoint
+- Business denial `PROVIDER_EXCLUDED`: 10 — one-to-one against the ten seeded fixture claims
+
+## Result — real orchestrated pipeline (the thing this episode actually needed to prove)
+
+Read directly from the running claims-service pods, not from the validator's own scoring (which only observes the synchronous endpoint):
+
+- `ProviderIntegrityStage` fired **10 `Deny` outcomes**, each logged with reason `Provider is excluded from federal healthcare programs` — a one-to-one match against the ten seeded `ExcludedProviderDenied` fixtures, split 4 and 6 across the two claims-service pods. Zero false positives, zero false negatives.
+- `GET /api/claims/{id}` on one denied claim (`d3409ca9-6ae1-4da0-bdb1-456344bd57cc`, rendering provider &quot;Excluded Provider05&quot;) confirmed the persisted result: `denialReasonCode: B7`, `denialReason: &quot;Provider is excluded from federal healthcare programs&quot;`, claim status `Denied`, `pendDetails: null`. Full response in `sample-denied-claim.json`.
+- Zero errors or exceptions logged anywhere in the provider-integrity path across the run.
+- Zero unintended `MEDREVIEW` pends — no clean provider was ever held for review.
+- The run's own false-pend sweep (already part of every MCC job, unrelated to this episode) reported **0 unexpected pends, 2 terminal outcomes reconciled** — the new stage introduced no side effect anywhere else in the pipeline.
+- All other short-circuited stage outcomes recorded in the same run: 73 `BenefitCalculation` denies (uncovered service / CARC denials, unrelated to this episode), 1 `Scrubbing` reject. No stage outcome is unaccounted for.
+
+Full claims-service log excerpt: `claims-service-provider-integrity-log-excerpt.txt`. Full validator console output: `raw-validator-output-500-smoke.txt`.
+
+## Environment limitation, disclosed
+
+This local cluster has no Service Bus emulator provisioned. Claims-service's messaging configuration auto-resolves to an in-process, in-memory bus, so the publish-to-subscribe hop that triggers `ClaimAdjudicationOrchestrator` happens inside the same pod that handled the HTTP request, not across a real broker. This is sufficient to prove the pipeline wiring and the new stage's logic are correct. It is not evidence about broker behavior, delivery guarantees, or timing under a real Service Bus connection string, which production configuration provides and this environment does not.
+
+## Interpretation rules for this run
+
+- This is a correctness and wiring verification, not a throughput or scale result. Do not compare its numbers to Part 8/9/10's claims-per-second figures.
+- Distinguish the synchronous benchmark endpoint's result (unchanged, still the validator's scoring surface) from the real orchestrator's result (new evidence this episode adds).
+- The in-memory message bus is a local-environment artifact, disclosed above — not a production behavior claim.
+- This is local Docker Desktop Kubernetes evidence, not a production capacity claim.
+</pre></details></section>
+<section id="episode-012"><div class="eyebrow">Part 12 · recorded artifact</div><h2>Two benchmark fixture bugs, a Submit-chain bottleneck traced to an under-provisioned shared database, and this series' first clean 500,000-claim confirmation.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-12-the-database-nobody-profiled">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-012/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 012</summary><pre># Episode 012 benchmark results
+
+STATUS: EVIDENCE RECORDED — CLEAN AT 500,000 CLAIMS, ONE NUMBER STILL OPEN. This episode fixes two validator fixture-generation bugs found while testing at scale, finds and fixes a real MongoDB CPU bottleneck underneath the Submit chain Part 10 disclosed but never measured, and runs this series' first 500,000-claim confirmation — clean on correctness, with the Part 10 wall-clock gap reproducing smaller (17 minutes, down from 45) but not resolved. Raw artifacts are committed alongside this file.
+
+## Fix history
+
+**Bug 1 — validator instrumentation gap.** Part 10's 250K confirmation left ~45 minutes of wall-clock time unaccounted for by any tracked lifecycle phase. Checked the leading hypothesis (the validator's own Job pod has no CPU request/limit and might be throttled) live via `cgroup cpu.stat` sampling through a full 30K-claim run: `nr_periods` stayed at 0 throughout — quota accounting wasn't even active — and the gap didn't reproduce at that scale (job wall time 6m40s vs. 6m36.599s of tracked prep + adjudication). Hypothesis ruled out. Instrumented every previously-untracked window between the end of timed adjudication and the final dashboard publish instead: the trailing progress-publish await, result ordering, summary build, summary JSON write, and the dashboard publish call itself. PR #976.
+
+**Bug 2 — scenario injection can silently overwrite already-tagged claims.** A 50K-claim run (needed to gather Submit-chain profiling samples) surfaced 4 workflow mismatches. Two were denied `PROVIDER_EXCLUDED` against a rendering NPI confirmed, via direct provider-service lookup, to be a genuinely-excluded fixture — the adjudicator was correct. Root cause: `InjectCleanPaidScenarios`, `InjectExcludedProviderScenarios`, and `InjectUncoveredServiceScenarios` select candidates by claim type and benefit plan only, with no check for an already-assigned `EdgeCase` tag (`BehavioralHealthCarveOut`, `RetroEligibilityAdd`). At 50K scale, candidate pools are large enough that these injectors can pick an already-tagged claim, overwrite its provider/benefit-plan/expected-outcome, and leave the original scenario label untouched — so the claim keeps scoring against its old expectation. Fixed by adding `EdgeCase is null` to all three candidate filters. Also hardened `MccProviderFixturePool.Apply` to isolate `ExcludedProviderDenied`-scenario claims the same way prior-auth-sensitive claims already are, as defense in depth. PR #977.
+
+**Bug 3 — member CoverageEffectiveDate uncorrelated with claim service date.** The other 2 of the same 4 mismatches: COB scenario claims (`CobBirthdayRule`, `CobSecondaryPayer`, `CobTertiaryPayer`) denied `CARC_27` (service date before member coverage effective date) instead of the expected `Pended`/`CARC_22`. Traced to `InMemoryReferenceDataProvider.GenerateMember`: `CoverageEffectiveDate` is drawn from a fixed 2023 window, uncorrelated with any claim's service date. Only `RetroEligibilityTermination` and the three newborn scenarios explicitly establish a correct effective/service relationship during generation — everything else, COB included, carries roughly a 1% per-claim chance of landing effective after its own service date. Fixed by having `MccClaimDateNormalizer.ShiftMemberCoverageDates` clamp the member's effective date back to one year before service whenever the uncorrelated default would otherwise leave it in the future. PR #978.
+
+**Bug 4 — MongoDB CPU limit, the real Submit-chain bottleneck.** With both fixture bugs fixed, Submit-chain timing was trustworthy: average time nearly doubled between a 30K run (59ms) and a 50K run (105ms), tied with Adjudicate as the largest per-claim cost. Instrumented every hop directly (adapter resolve, claim insert, event publish, Service Bus send; and inside event publish, the idempotency check, version-number query, and event insert Part 10 originally described as the chain's five sequential hops). All four Mongo-touching hops showed the same signature: low median (2-20ms), P95/P99 spiking to 80-185ms — resource contention, not per-operation cost. Checked MongoDB's own `cgroup cpu.stat`: `nr_periods=928,143`, `nr_throttled=120,381` (12.97% of periods), `throttled_usec=61,950,174,085` against `usage_usec=22,994,190,530` — MongoDB had spent more cumulative time throttled than actually running, on a 1-core limit shared by claims-service (x2), member-service, provider-service, benefit-plan-service, and coverage-service. Never touched by the app-tier CPU-limit fixes from Part 10. Raised MongoDB from 250m/1000m to 1000m/4000m. Kept the profiling instrumentation as permanent low-volume observability (demoted from informational to debug logging). PR #982.
+
+## Verification — Submit-chain profiling, before/after MongoDB fix
+
+Identical 20,000-claim/seed=555/parallelism=30 job, run twice: once against the unfixed 1-core MongoDB limit, once against the fixed 4-core limit.
+
+| Metric | Before | After |
+|---|---|---|
+| claimInsert avg/P95 | 39.37ms / 89.43ms | 6.89ms / 13.37ms |
+| eventPublish avg/P95 | 45.65ms / 105.23ms | 8.22ms / 20.72ms |
+| serviceBusSend avg | 1.14ms | 3.43ms |
+| Submit avg (validator-reported) | ~86ms | 24ms |
+| Throughput | ~120-150 claims/sec | 412.05 claims/sec |
+| MongoDB throttled periods | 12.97% (928,143 periods sampled) | 0.21% (1,397 periods sampled) |
+| Workflow scoring | — | 2,443/2,600 matched, 0 mismatched |
+
+A follow-up audit of the other shared dependencies in the adjudication critical path found nothing else close to MongoDB's severity: Redis (which also backs the accumulator cache Part 10 profiled) at 0.0056% throttled periods, provider-service at 1.5-1.7%, claims-service at 1.9-2.7%, benefit-plan-service at 0.11-0.15%. MongoDB was the outlier, not a pattern across the stack.
+
+## Run identity — 500,000-claim confirmation
+
+- Kubernetes job: `mcc-500k-confirmation`
+- Environment: local Docker Desktop Kubernetes (`kind` cluster `docker-desktop`)
+- Images: `cloudhealthoffice-claims-service:pi-25feafac`, `cloudhealthoffice-benefit-plan-service:pi-25feafac` — both built from `main` at commit `25feafac` (the PR #982 merge commit)
+- MongoDB: `1000m`/`4000m` request/limit (the fix verified above), StatefulSet `mongodb`, single replica
+- Tenant: `demo`
+- Validator seed: 42 (fresh — not reused from any earlier test run this series)
+- Claims: 500,000
+- Parallelism: 56 (matching Part 10's 250K confirmation exactly, isolating scale as the only variable)
+- Line of business: Medicaid
+- Prior-authorization scenario rate: 2%
+- Pend observation: enabled, 45-second bound, 1-second polling interval
+
+## Command
+
+```text
+NAMESPACE=cloudhealthoffice JOB_NAME=mcc-500k-confirmation CLAIMS=500000 MAX_CLAIMS=500000 SEED=42 PARALLELISM=56 PROGRESS_EVERY=25000 JOB_TIMEOUT=150m ./scripts/run-mcc-local-k8s.sh
+```
+
+The run must be executed from a checkout that includes PR #976, #977, #978, and #982, with `claims-service` and `benefit-plan-service` rebuilt from that checkout and MongoDB running the raised CPU limit.
+
+## Raw artifacts
+
+- `raw-validator-output-500k.txt` — validator console output from the completed 500K confirmation run.
+- `mongodb-cgroup-before-after.txt` — MongoDB's `cgroup cpu.stat` and resource spec, before the fix (accumulated since a prior pod start) and immediately after rollout with the new limit (fresh baseline, 0 throttled periods).
+- `submit-profile-before-after.txt` — aggregated per-hop Submit-chain timing statistics (avg/P50/P95/P99/max) computed from `SubmitProfile` log lines across both 20K profiling runs.
+
+## Correctness result
+
+- Total claims: 500,000
+- Processed: 500,000
+- Paid/adjudicated: 410,514
+- Pended: 4,598
+- Business denials: 84,888
+- Platform failures: 0
+- Observation timeouts: 0
+- Workflow scoring: **61,063/65,000 matched, 4 mismatched**, 3,933 unsupported, 0 observation timeouts
+- Payment gate: 10,000/10,000 within $0.01, exact
+- `ExcludedProviderDenied`: 10,000/10,000 matched — confirms PR #977 holds at 2x the scale it was found and fixed at
+- COB scenarios: `CobPrimaryPayer`, `CobSecondaryPayer`, `CobTertiaryPayer`, `CobGenderRule`, `CobMedicareSecondary` all 1,000/1,000 matched; `CobBirthdayRule` 998/1,000 (2 mismatched) — confirms PR #978 holds for 5 of 6 previously-affected variants at scale
+- The 4 mismatches (`CobBirthdayRule` x2, `NewbornFirstThirtyDays` x1, `NewbornMotherClaimLink` x1) are consistent with the already-disclosed residual noise sources (pre-existing polluted tenant records from earlier test runs; the unconfirmed provider-NPI-collision path) — not a new defect. This tenant (`demo`) has accumulated state across every test run in this episode and Episode 011; a fresh tenant would be expected to score cleaner still.
+
+## Performance result
+
+- Timed claim-processing elapsed: 44:47.334
+- Throughput: 186.06 claims/second (Part 10's 250K baseline: 145.04 — per-claim speed improved even as scale doubled)
+- P95 latency: 571 ms
+- P99 latency: 695 ms
+- Submit avg/P95: 193 ms / 400 ms
+- Adjudicate avg/P95: 16 ms / 57 ms
+- Writeback avg/P95: 93 ms / 209 ms
+- Preparation time: 21:20.052 (member seeding 17:06.849, provider seeding 4:03.108)
+- Tracked lifecycle: 1:06:14
+- Post-processing: 0:03.126 (pending progress publish 0.000s, result ordering 0.181s, summary build 2.387s, summary JSON write 0.014s, dashboard publish 0.541s)
+- Grand total (tracked lifecycle + post-processing): 1:06:17
+- Fixture pool: 73,365 distinct providers (72,603 created this run, 762 already present), 490,227 members status-aligned (415,914 created, 74,313 already present)
+
+`Submit` avg (193ms) at 500K/p56 is higher than the 20K/p30 post-fix profiling test (24ms) — expected, given both a much larger scale and roughly double the sustained concurrency and duration. It is still far healthier than a naive extrapolation of the pre-fix 30K-to-50K growth trend (59ms to 105ms) would have predicted. MongoDB's own `cgroup cpu.stat` was not re-checked specifically during this 500K run; the fix's effect here is inferred from the isolated 20K before/after comparison and this run's clean scoring and competitive throughput, not measured directly at this scale.
+
+## The unresolved wall-clock gap
+
+- Validator's own reported &quot;Grand total&quot;: 1:06:17
+- Dashboard record `createdAtUtc`: 2026-07-23T03:16:40.516Z
+- Dashboard record `lastUpdatedAtUtc`: 2026-07-23T04:40:20.521Z
+- Real wall time (createdAtUtc to lastUpdatedAtUtc): **1:23:40**
+- Gap: approximately **17 minutes 23 seconds** — down from Part 10's ~45 minutes, not resolved
+
+Confirmed via claims-service's own timestamped log line (`04:40:21.037473628Z`, &quot;Saved mass adjudication run 500000/500000 processed&quot;) that the final dashboard save genuinely completed at the true end of the real wall-clock span — not 17 minutes earlier, as the validator's own &quot;Grand total&quot; and its 541ms client-side timing for that specific call would otherwise imply. Post-processing itself is proven fast (3.1 seconds total) by this episode's own instrumentation, ruling out everything after the timed loop stops. The remaining discrepancy is unresolved and disclosed as open rather than rounded away.
+
+## Business denials
+
+- CARC_96: 46,935
+- PRIOR_AUTH_REQUIRED: 13,200
+- CARC_18: 11,216
+- PROVIDER_EXCLUDED: 10,004
+- NCCI_MUE_EDIT_FAILURE: 1,935
+
+Total: 84,888, reconciling exactly against the correctness result above.
+
+## Unsupported scenarios
+
+Unchanged from Part 9/10/11's proportions, scaled to 500K: 3,933 total (`RetroEligibilityCoverageChange`, `MedicaidSpendDown`, and the three Subrogation variants). These remain visible product gaps awaiting their own deliberate conversion work — this episode did not touch the scored surface.
+
+## Interpretation rules for this run
+
+- Distinguish platform failures from business dispositions.
+- Do not count unsupported scenarios as passes.
+- Keep timed adjudication separate from the tracked lifecycle.
+- This is local Docker Desktop Kubernetes evidence, not a production capacity claim.
+- The four residual mismatches are attributed to accumulated test-tenant state from prior episodes and this episode's own earlier test runs, not to a defect in the fixes verified here — recorded as an attribution, not proven with certainty.
+- The ~17-minute wall-clock gap is disclosed as open and unresolved, the same as Part 10 disclosed its own unconfirmed number rather than assuming the best case.
+</pre></details></section>
+<section id="episode-013"><div class="eyebrow">Part 13 · recorded artifact</div><h2>Closing the wall-clock gap disclosed in Part 10 and Part 12 by proving, with matching host sleep-log evidence, that it was macOS suspending the local Kubernetes cluster mid-run.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-13-the-gap-was-the-laptop">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-013/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 013</summary><pre># Episode 013 benchmark results
+
+## PR #984 - Checkpoint instrumentation + caffeinate fix
+
+### Instrumentation added
+
+- Every lifecycle phase (via `MeasureLifecycleValuePhaseAsync`) now prints an absolute-timestamp
+  checkpoint on completion: `[checkpoint] {label} :: started {HH:mm:ss.fff}Z, completed
+  {HH:mm:ss.fff}Z, stopwatch {elapsed}`.
+- The previously-untracked &quot;Running&quot; progress publish sent immediately before the timed
+  adjudication loop starts is now a tracked lifecycle phase, &quot;Initial progress publish&quot;
+  (category: Preparation).
+- `WritePostProcessingTimings` now also prints `Actual wall clock (run start to now)` (computed
+  directly from `runStartedAtUtc`) and `Unaccounted` (actual wall clock minus tracked total),
+  replacing indirect inference with a direct measurement on every run.
+
+### Three live 150,000-claim runs, same job (seed 777, parallelism 56), progressively instrumented
+
+| | Run 1 (pre-fix) | Run 2 (checkpoints only) | Run 3 (+ caffeinate) |
+|---|---|---|---|
+| Grand total (tracked lifecycle + post-processing) | 22:41.059 | 18:06.218 | 22:27.845 |
+| Actual wall clock | 24:00.102 | 28:44.971 | 22:27.905 |
+| Unaccounted | 1:19.043 | 10:38.753 | 0:00.060 |
+| Platform failures | 1 (unrelated Redis/accumulator HTTP timeout) | 0 | 0 |
+
+### Run 1 checkpoint detail (the phase-internal mismatch)
+
+```
+Member and coverage seeding :: started 17:14:19.737Z, completed 17:26:36.094Z, stopwatch 00:11:40.2494256
+```
+
+Checkpoint wall-clock span: 17:26:36.094 - 17:14:19.737 = 12:16.357
+Internal Stopwatch span:    11:40.249
+Divergence:                 0:36.108
+
+Every other phase in this run matched its own checkpoint span to its Stopwatch value within a few
+milliseconds (e.g. Provider seeding: checkpoint span 1:13.798 vs. Stopwatch 1:13.797). Only this one
+phase diverged, by a large, single, contiguous amount.
+
+### Run 2 checkpoint detail (the phase-internal mismatch, isolated further)
+
+```
+Initial progress publish :: started 17:47:16.115Z, completed 17:47:16.137Z, stopwatch 00:00:00.0217330
+Expected-pend observation :: started 18:11:09.277Z, completed 18:11:09.480Z, stopwatch 00:00:00.2031675
+Lifecycle.Timed adjudication           13:14.346
+```
+
+Wall-clock span from end of &quot;Initial progress publish&quot; to start of &quot;Expected-pend observation&quot;:
+18:11:09.277 - 17:47:16.137 = 23:53.140
+Minus the two small tracked steps in between (Pending progress publish 0.016s + Result ordering 0.043s = 0.059s):
+23:53.081
+Timed adjudication's own Stopwatch: 13:14.346
+Divergence: 23:53.081 - 13:14.346 = 10:38.735 (reported Unaccounted: 10:38.753, within 18ms)
+
+### Host sleep-log correlation (`pmset -g log`)
+
+```
+2026-07-23 10:19:49 -0700 Sleep   Entering Sleep state due to 'Idle Sleep':TCPKeepAlive=active Using Batt (Charge:25%) 38 secs
+2026-07-23 10:20:27 -0700 Wake    Wake from Deep Idle [CDNVA] : due to MTP.DOCK.CHANNELS.AP0.IRQ RTP.multi-touch/HID Activity Using BATT (Charge:25%) 571 secs
+
+2026-07-23 10:54:57 -0700 Assertions   PID 266(powerd) Created InternalPreventSleep &quot;com.apple.powermanagement.darkwakelinger&quot; ...
+2026-07-23 10:55:02 -0700 Sleep   Entering Sleep state due to 'Idle Sleep':TCPKeepAlive=active Using AC (Charge:6%) 641 secs
+2026-07-23 11:05:43 -0700 Wake    Wake from Deep Idle [CDNVA] : due to MTP.DOCK.CHANNELS.AP0.IRQ RTP.keyboard/UserActivity Assertion Using AC (Charge:6%)
+```
+
+| Sleep event (local -0700) | UTC window | Logged duration | Matching phase | Phase divergence |
+|---|---|---|---|---|
+| 10:19:49 -&gt; 10:20:27 | 17:19:49 -&gt; 17:20:27 | 38s | Run 1: Member and coverage seeding (17:14:19-17:26:36) | 36.1s |
+| 10:55:02 -&gt; 11:05:43 | 17:55:02 -&gt; 18:05:43 | 641s | Run 2: Timed adjudication (17:47:16-18:11:09) | 638.75s |
+
+Both sleep events fall entirely inside the phase that showed the matching divergence, and both
+durations match to within about 2 seconds. `caffeinate -dis` wrapping the run's `kubectl wait`
+prevents idle sleep for the duration of the job; Run 3, under that wrapper, closed to 60ms
+unaccounted on the same job.
+
+## Resolution of Part 10 and Part 12's disclosed gaps
+
+Neither historical gap can be re-verified directly against `pmset`'s log, which does not retain
+history back to those runs. But the mechanism found here fits both disclosed symptoms in ways an
+application-level bug does not:
+
+- Part 10 (250K claims): ~45 minutes unaccounted.
+- Part 12 (500K claims, 2x the volume): ~17 minutes unaccounted, smaller despite more claims.
+
+A cost that scaled with claim count or batch size would grow with volume, not shrink. A host going
+idle mid-run has no relationship to claim count at all -- only to how long the machine happened to
+sit unattended during that specific run. That non-relationship was flagged as an open coincidence at
+the end of the Part 12 investigation; it stops being a coincidence once &quot;how long the laptop was left
+alone&quot; is the actual variable.
+
+Part 12 also disclosed a specific contradiction: claims-service's own server-side log timestamp for
+the final dashboard save placed it at the true end of the 1:23:40 run, while the validator's own
+client-side timer for that identical HTTP call reported 541 milliseconds. Under this mechanism that
+resolves rather than remains open: if the validator process's own Stopwatch (backed by the same
+paused `CLOCK_MONOTONIC`) was mid-call when the VM suspended, it would report an artificially short
+elapsed time on resume while the server, watching real wall time, correctly recorded the call
+finishing near the true end of the run. Both measurements were accurate; they were reading different
+clocks.
+</pre></details></section>
+<section id="episode-014"><div class="eyebrow">Part 14 · recorded artifact</div><h2>Closing the scoring gap carried since Part 9 with a first-ever zero-unsupported run, then finding and fixing why parallelism 56 had quietly underperformed lower concurrency this whole series.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-14-zero-unsupported-parallelism">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-014/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 014</summary><pre># Episode 014 benchmark results
+
+## PR #987 - RetroEligibilityCoverageChange: unsupported to scored
+
+- Added `Member.PlanChangeEffectiveDate` to member-service's real `Member` model (X12 834
+  maintenance type code 001 = Change), threaded through `CreateMemberRequest` and the
+  `GET /api/v1/members/{id}` response.
+- New check in `BenefitCalculationStage`: pends (`PendCode RETROELIG`) any claim whose service
+  date is on or after the member's on-file retroactive plan-change date.
+- Live 10,000-claim run: `RetroEligibilityCoverageChange` 26/26 matched (0 mismatched,
+  0 unsupported). False-pend sweep: 0 unexpected pends among 1,130 non-pend claims.
+
+## PR #988 - All three Subrogation scenarios: unsupported to scored
+
+- Added `SyntheticClaim.RelatedCausesCode`/`AccidentDate` and the matching pair on claims-service's
+  `Claim`/`AdapterClaim` (X12 837 CLM11 related-causes code: AA=Auto Accident, EM=Employment,
+  OA=Other Accident).
+- One check in `BenefitCalculationStage` covers all three: pends (`PendCode SUBRO`) on any
+  recognized related-causes code. Generator maps `SubrogationAccidentRelated`-&gt;AA,
+  `SubrogationThirdPartyLiability`-&gt;OA, `SubrogationWorkersComp`-&gt;EM.
+- Live 10,000-claim run: `SubrogationAccidentRelated` 14/14, `SubrogationThirdPartyLiability` 13/13,
+  `SubrogationWorkersComp` 13/13 matched (0 mismatched, 0 unsupported for all three).
+  `RetroEligibilityCoverageChange` still 26/26 (no regression from #987). False-pend sweep:
+  0 unexpected pends among 1,130 non-pend claims.
+
+## PR #989 - MedicaidSpendDown: unsupported to scored, sweep complete
+
+- Added `Member.MedicaidSpendDownLiabilityAmount`/`MedicaidSpendDownAmountMet` to member-service's
+  `Member` model. Modeled as a member-level eligibility fact (mirrors `PlanChangeEffectiveDate`),
+  not routed through the production deductible/accumulator engine.
+- New check in `BenefitCalculationStage`: pends (`PendCode SPENDDOWN`) when the member's
+  accumulated amount hasn't yet met their spend-down liability.
+- `MccWorkflowValidation.IsUnsupportedPendedEdgeCase` removed entirely -- no scenarios left to gate.
+- Live 10,000-claim run: `MedicaidSpendDown` 12/12 matched (0 mismatched, 0 unsupported).
+
+  **Workflow checks: 1,300/1,300 matched (0 mismatched, 0 unsupported, 0 observation timeouts).**
+
+  First time this series has run with zero unsupported claims. `RetroEligibilityCoverageChange`
+  (26/26) and all three Subrogation scenarios (14/14, 13/13, 13/13) held with no regression.
+  False-pend sweep: 0 unexpected pends among 1,130 non-pend claims.
+
+- CI (not local verification) caught two `CloudHealthOffice.MccPlatformValidator.Tests` tests that
+  had used `SubrogationWorkersComp` as their working example of &quot;unsupported&quot; -- a premise this PR
+  chain made false. Local test runs during #987-#989 covered `ClaimsService.Tests` and
+  `BenchmarkClaimGenerator.Tests` but not `MccPlatformValidator.Tests`. Both tests rewritten to
+  assert the new correct behavior and verified locally (110/110 passing) before merge.
+
+## PR #990 - P56 parallelism contention: member-service, coverage-service CPU; claims-service memory
+
+### The observation, verified against the dashboard
+
+Last 25 runs pulled directly from the mass-adjudication dashboard API:
+
+| Parallelism | Best P95 | Best throughput |
+|---|---|---|
+| 10 | 243.5ms | 78.3/s |
+| 15 | 245.0ms | 108.2/s |
+| 20 | 70.2ms | 699.2/s |
+| 28 | 518.8ms | 88.9/s |
+| 30 | 119.8ms | 412.1/s |
+| 40 | 413.5ms | 150.4/s |
+| 44 | 691.7ms | 118.2/s |
+| 56 | 355.2ms | 258.7/s |
+
+P56's best throughput run (258.7/s) was worse than P20's best (699.2/s) on both latency and
+throughput at once -- the signature of contention, not a normal latency-for-throughput tradeoff.
+
+### Root cause: live cgroup cpu.stat, before/after a controlled 20K-claim P56 job
+
+| Service | % periods throttled |
+|---|---|
+| member-service | 48.09% |
+| coverage-service | 22.50% |
+| claims-service (pod 1) | 12.82% |
+| claims-service (pod 2) | 4.10% |
+| benefit-plan-service (×3) | 1.15% / 3.11% / 7.48% |
+| redis-dataprotection | 0.00% |
+
+member-service and coverage-service were each a single replica on 250m/500m (request/limit) CPU,
+serving a member lookup for every claim in the pipeline and a coverage lookup for every COB
+scenario respectively -- never touched by any of this series' three prior CPU-limit rounds
+(Part 10 app tier, Part 12 MongoDB) because neither had been the bottleneck before.
+
+### Fix 1: member-service and coverage-service CPU, 250m/500m -&gt; 500m/2000m
+
+Same 20K/P56 job, before and after:
+
+| | Before | After |
+|---|---|---|
+| member-service throttled | 48.09% | 1.38% / 4.89% (2 pods) |
+| coverage-service throttled | 22.50% | 0.13% / 0.14% (2 pods) |
+| Throughput | 258.7/s (best prior) | 306.7/s |
+| P95 latency | 355.2ms (best prior) | 316.7ms |
+| P99 latency | 663.9ms (best prior) | 549.4ms |
+
+### Fix 1 exposed Fix 2: claims-service OOMKilled
+
+Once member-service/coverage-service stopped queuing requests, claims-service sustained enough
+real concurrent load to exceed its 512Mi memory limit (2 CPU limit was never the constraint).
+`kubectl describe pod` confirmed `Last State: Terminated, Reason: OOMKilled, Exit Code: 137`
+during the Fix-1-verification run. Produced 0 platform failures (validator retried transparently)
+but 77 workflow mismatches, all `RetroEligibilityCoverageChange` claims caught mid-flight --
+addressed by Fix 2, though see the separate note below on the actual root cause of those 77.
+
+Raised claims-service memory 128Mi/512Mi -&gt; 256Mi/2048Mi. Same job again:
+
+| | Fix 1 only | Fix 1 + Fix 2 |
+|---|---|---|
+| claims-service OOM kill | Yes | No (clean restart only, exit code 0) |
+| Throughput | 306.7/s | 362.8/s |
+| P95 latency | 316.7ms | 269.3ms |
+| P99 latency | 549.4ms | 395.9ms |
+| workflowMismatches | 77 | 77 (see below -- unrelated to the OOM) |
+
+### Fix 3: imagePullPolicy Always -&gt; IfNotPresent
+
+Applying `member-service-deployment.yaml`/`coverage-service-deployment.yaml` directly (required to
+test the CPU change) revealed both use `imagePullPolicy: Always`, which forces a registry pull
+even when a locally `kind`-loaded image is already present -- breaking local development the
+moment either manifest is applied. `claims-service`'s own (separately-located, not previously
+applied wholesale) deployment file already used `IfNotPresent`. Fixed on all three deployments.
+
+### Two things surfaced along the way, disclosed rather than smoothed over
+
+1. **Live cluster configuration drift.** Applying the full member-service/coverage-service
+   manifests for the first time in this cluster's ~3-week local history reset `ASPNETCORE_ENVIRONMENT`
+   from a hand-patched `Development` back to the committed `Production`, and reset the MongoDB
+   connection secret to a placeholder password that didn't match the cluster's actual credentials.
+   Both services crash-looped until the live (correct) values were restored by hand via
+   `kubectl set env` / `kubectl patch secret`. Not a code defect -- confirmation that a manifest
+   nobody re-applies for weeks isn't validated just by existing in the repository.
+
+2. **The 77 `RetroEligibilityCoverageChange` mismatches were not caused by the OOM kill.** All 77
+   showed `expectedOutcome: Pended, outcome: Paid` -- the pend never fired. Root cause: member
+   seeding (`SeedMembersAsync`) is create-only, skipping silently on a 409 Conflict rather than
+   updating the existing record. Running several overlapping-seed P56 investigation jobs
+   back-to-back against the same `demo` tenant meant some `RetroEligibilityCoverageChange` claims
+   collided with member records an earlier job had already created -- before
+   `PlanChangeEffectiveDate` existed on them, or with a different value. This is the same gap
+   Part 12 disclosed and deliberately deferred (&quot;refreshing member CoverageEffectiveDate on
+   seeding reuse would require extending member-service's production UpdateMemberRequest API&quot;),
+   now surfacing a second time against a different field. The scenario's own dedicated
+   verification, on a clean seed with no reuse, scored 26/26 (see PR #987 above). Confirmed via
+   `GET /api/mass-adjudication/runs/{id}/claims?validationStatus=Mismatched`: all 77 mismatches
+   were the identical scenario and identical outcome pattern, none attributable to the pod
+   restart. Still open.
+
+## Known, disclosed, unfixed issues carried forward
+
+- Member-seeding reuse never refreshes existing member records on conflict (surfaced in Part 12,
+  and again in this episode's PR #990 verification run).
+- A rare provider-NPI collision between the two independent NPI-generation schemes, observed once
+  in Part 12, not confirmed or fixed.
+- The ~2.7x throughput gap between a fresh-post-rollout P20 run (699 claims/sec) and later P20 runs
+  on the same long-lived pods (349-498 claims/sec), most likely explained by cold-start advantages
+  (no accumulated CPU-throttling debt, connection-pool pressure, or GC-heap fragmentation) --
+  flagged, not investigated further; doesn't affect the validity of the P56 before/after comparisons,
+  which were always taken on the same pods within a single test window.
+</pre></details></section>
+<section id="episode-015"><div class="eyebrow">Part 15 · recorded artifact</div><h2>Running this series' first full 1,000,000-claim confirmation, finding a Redis memory ceiling that only that scale could expose, and fixing it live.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-15-one-million-claims">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-015/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 015</summary><pre># Episode 015 benchmark results
+
+## Pre-run: fresh rebuild and deploy
+
+All four services touched by PRs #987-#990 (claims-service, benefit-plan-service, member-service,
+coverage-service) rebuilt fresh from the merged main commit (20cfe1e4) and redeployed before
+either 1M run -- not reused ad-hoc images from earlier verification passes. A 2,000-claim smoke
+test confirmed all healthy before committing to the full run: 260/260 workflow checks matched,
+0 mismatched, 0 unsupported, 0 platform failures, payment gate 40/40 exact.
+
+## Run 1 (pre-fix): mcc-1m-confirmation, seed 20260724, parallelism 56
+
+  Total claims:       1,000,000
+  Processed:          999,977
+  Paid/adjudicated:   814,658
+  Pended:             17,074
+  Business denials:   168,245
+  Platform failures:  23
+  Workflow checks:    129,989/130,000 matched (11 mismatched, 0 unsupported, 0 observation timeouts)
+  Throughput:         107.91 claims/sec
+  P95 latency:        1,008 ms
+  P99 latency:        1,302 ms
+  Payment gate:       20,000/20,000 within $0.01 (0 mismatched, max $0.00)
+  Payment delta:      Exact (20,000)
+  Grand total (tracked lifecycle + post-processing): 3:00:08
+  Actual wall clock (run start to now):              3:00:34
+  Unaccounted:                                       0:25.349
+
+Member and coverage seeding: 962,763 members targeted, 17:26.535 elapsed.
+
+### The 23 platform failures
+
+All 23 appeared in a single tight window between the 950,000 and 960,000-claim mark (the
+progress log showed platformFailures=0 through 950,000, then =23 by 960,000, unchanged
+thereafter). Two distinct symptoms, same root cause:
+
+  Failure: MCC-P-0551320 [adjudicate] adjudication failed: 504
+    RedisTimeoutException: Timeout awaiting response (22689ms elapsed, timeout is 5000ms),
+    command=HGETALL, next: HGETALL accum:demo:IND:MBR-0173638:...:2025
+    serverEndpoint: redis-dataprotection.cloudhealthoffice.svc.cluster.local:6379
+
+  Failure: MCC-P-0551321 [submit] The request was canceled due to the configured
+    HttpClient.Timeout of 60 seconds elapsing.
+  (repeated for MCC-P-0551324, MCC-P-0551326, MCC-P-0551327, and others)
+
+### Root cause: Redis maxmemory ceiling
+
+  redis-cli INFO memory (during/shortly after Run 1):
+    used_memory:805224344
+    used_memory_human:767.92M
+    maxmemory:805306368
+    maxmemory_human:768.00M
+    maxmemory_policy:volatile-lru
+
+  redis-cli INFO stats:
+    evicted_keys:6168569
+    total_commands_processed:102981845
+
+  redis-cli DBSIZE: 3833565
+  redis-cli INFO keyspace: db0:keys=3833565,expires=3833565
+
+used_memory was pinned exactly at the 768MB maxmemory ceiling. evicted_keys (6,168,569) exceeded
+the actual key count (3,833,565) -- more evictions had occurred than keys currently held. All keys
+carried an expiry (expires=keys), so volatile-lru was technically eligible to evict them, but the
+eviction-scan overhead itself, sustained under real P56 concurrent load once the store stayed full,
+is what collapsed a normally sub-millisecond HGETALL into a 22-second wait.
+
+The `768mb`/`volatile-lru` configuration existed nowhere in the repository.
+`infrastructure/k8s/redis-dataprotection.yaml` specified no `maxmemory` at all before this episode
+-- vanilla `redis:7-alpine`, unconfigured. The live cluster had been hand-patched with these args
+at some point in its history and never synced back to the committed manifest -- the same
+undocumented-drift pattern found on member-service and coverage-service during Part 14's P56
+investigation, now surfacing on a third service.
+
+## Fix: raise Redis maxmemory 768mb -&gt; 3072mb
+
+Applied live via targeted `kubectl patch`/`kubectl set resources` (not a full manifest apply,
+learning directly from the config-drift incident during Part 14's investigation), then checked the
+working configuration into `infrastructure/k8s/redis-dataprotection.yaml` for the first time:
+
+  args: redis-server --save &quot;&quot; --appendonly no --maxmemory 3072mb --maxmemory-policy volatile-lru
+  resources: requests 512Mi/100m, limits 4096Mi/500m (was 256Mi/100m request, 1Gi/500m limit)
+
+## Run 2 (post-fix): mcc-1m-confirmation-v2, seed 20260725, parallelism 56
+
+  Total claims:       1,000,000
+  Processed:          1,000,000
+  Paid/adjudicated:   814,518
+  Pended:             17,058
+  Platform failures:  0
+  Workflow checks:    129,981/130,000 matched (19 mismatched, 0 unsupported, 0 observation timeouts)
+  Throughput:         123.81 claims/sec
+  P95 latency:        957 ms
+  P99 latency:        1,290 ms
+  Payment gate:       20,000/20,000 within $0.01 (0 mismatched, max $0.00)
+  Payment delta:      Exact (20,000)
+  Grand total (tracked lifecycle + post-processing): 2:36:42
+  Actual wall clock (run start to now):              2:36:42
+  Unaccounted:                                       0:00.007
+
+Member and coverage seeding: 962,530 members targeted, 13:15.177 elapsed (faster than Run 1
+despite comparable volume -- consistent with the member-service/coverage-service CPU fix from
+Part 14 holding under this episode's load too).
+
+### Redis state after Run 2 (clean)
+
+  redis-cli INFO memory:
+    used_memory:405962088
+    used_memory_human:387.16M
+    maxmemory_human:3.00G
+
+  redis-cli INFO stats:
+    evicted_keys:0
+
+  redis-cli DBSIZE: 1925060
+
+Redis used 13% of its new ceiling. Zero evictions the entire run.
+
+## Comparison
+
+| | Run 1 (pre-fix) | Run 2 (post-fix) |
+|---|---|---|
+| Processed | 999,977 / 1,000,000 | 1,000,000 / 1,000,000 |
+| Platform failures | 23 | 0 |
+| Redis evicted_keys | 6,168,569 | 0 |
+| Redis used_memory | 768MB (pinned at ceiling) | 387MB (13% of 3GB ceiling) |
+| Workflow checks | 129,989/130,000 matched | 129,981/130,000 matched |
+| Payment gate | 20,000/20,000 exact | 20,000/20,000 exact |
+| Throughput | 107.91 claims/sec | 123.81 claims/sec |
+| P95 / P99 latency | 1,008ms / 1,302ms | 957ms / 1,290ms |
+| Wall-clock unaccounted | 0:25.349 | 0:00.007 |
+
+## What remains open
+
+Throughput at sustained 1,000,000-claim scale (107.91-123.81 claims/sec across both runs) remains
+well below the 363 claims/sec verified in Part 14 at 20,000-claim scale. Confirmed not Redis on
+both runs (0% and 13% memory used, 0 evictions in the clean run). Not investigated further in this
+episode -- reproducing the conditions requires another multi-hour live run, for a gap that does not
+affect correctness (0 platform failures, 0 unsupported, exact payment gate held in both runs).
+Candidates for a future investigation: MongoDB under genuinely sustained multi-hour load,
+connection-pool/GC accumulation a short burst test never has time to build up, or the possibility
+that short-burst P95/P99 numbers were never a valid predictor of multi-hour steady-state behavior.
+
+The 19 workflow mismatches in Run 2 (11 in Run 1) are scattered across 9 different scenario types
+with no dominant pattern (0.015% and 0.008% of scoreable checks respectively) -- consistent with
+statistical noise at genuine scale rather than a systemic defect, not investigated claim-by-claim
+in this episode.
+</pre></details></section>
+<section id="episode-016"><div class="eyebrow">Part 16 · recorded artifact</div><h2>Moving the full million-claim corpus onto asynchronous Service Bus adjudication, then proving the separate raw X12 837 onramp at 100,000 claims.</h2><div class="article-links"><a href="/insights/million-claim-challenge/part-16-the-million-went-through-the-bus">Read article</a><a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-016/benchmark-results.txt" target="_blank" rel="noopener noreferrer">Source artifact</a></div><details class="evidence-block" open><summary>Benchmark results recorded with Episode 016</summary><pre># Episode 016 benchmark results
+
+## Environment and scope
+
+- Date: 2026-07-27/28
+- Platform: local Docker Desktop Kubernetes
+- Claims-service replicas: 3
+- Service Bus consumer concurrency: 32 per pod, 96 total configured calls
+- Messaging: Azure Service Bus namespace provisioned for local development
+- Authorization: least-privilege Listen/Send rule installed as `servicebus-secret`
+- Persistence: local MongoDB
+- These are local validation measurements, not production-cloud capacity claims.
+
+## Run A — full MCC corpus through Service Bus-only adjudication
+
+- Tenant: `mcc-sb-mixed-1m-p96-v3`
+- Workload: 1,000,000 deterministic mixed MCC claims submitted as structured JSON
+- Validator parallelism: 96
+- Path: `POST /api/v1/claims` -&gt; Azure Service Bus -&gt; local claims-service adjudication -&gt; MongoDB
+- This run did not parse an 837 file.
+
+Validator summary:
+
+  Total claims:       1,000,000
+  Processed in window: 999,878
+  Paid/adjudicated:   813,726
+  Pended:             19,019
+  Business denials:   167,133
+  Platform failures:  122
+  Workflow checks:    129,980/130,000 matched
+  Workflow mismatches: 20
+  Throughput:         155.89 claims/sec
+  P95 latency:        910 ms
+  P99 latency:        1,205 ms
+  Payment gate:       19,982/19,982 exact within $0.01
+  Timed adjudication: 1:46:54
+  Preparation:        33:18
+
+The 122 validator failures were all `servicebus-observation` timeouts: the claim did not become
+terminal inside that claim's 180-second polling window. They clustered in two brief periods.
+They were not submission failures, dead letters, or lost claims.
+
+Post-run verification:
+
+  Persisted claims:       1,000,000
+  Terminal claims:        1,000,000
+  Nonterminal claims:     0
+  Final paid:             813,845
+  Final pended:           19,019
+  Final business denials: 167,136
+  Lifecycle events:       2,000,000
+  Service Bus active:     0
+  Service Bus dead-letter: 0
+  Claims pod restarts:    0
+  Claims-service error/exception log matches: 0
+
+Interpretation:
+
+- Latest sustained 1M throughput improved from Part 15's 123.81 claims/sec to 155.89 claims/sec:
+  +25.9%.
+- It also exceeded Part 10's 250K record of 145.04 claims/sec by 7.5%.
+- Part 15 remains the latest strict zero-platform-failure 1M validator result.
+- Episode 16 proves 100% eventual completion on the asynchronous path, while also exposing that a
+  fixed per-claim observation window can misclassify delayed work as failed at genuine scale.
+- The 20 workflow mismatches and 18 missing payment comparisons were claims that timed out before
+  the validator could score their persisted outcomes; the validator did not reconcile them later.
+
+## Run B — 10K raw X12 837P at importer concurrency 64
+
+- File size: 1,590,586 bytes
+- Claims: 10,000
+- Importer concurrency: 64
+- Accepted: 10,000/10,000
+- Parse and submit: 27.45 seconds, 364.36 claims/sec
+- All terminal: 50 seconds from request start, 200.00 claims/sec
+- Import transactions: 10,000
+- Lifecycle events: 20,000
+- Active/dead-letter after drain: 0/0
+- Pod restarts: 0
+- Error/exception log matches: 0
+
+## Run C — 100K raw X12 837P at importer concurrency 64
+
+- File size: 16,100,587 bytes (below the endpoint's 20 MB request limit)
+- Claims: 100,000
+- Importer concurrency: 64
+- Path: raw X12 file -&gt; parser/importer -&gt; claims-service -&gt; Azure Service Bus -&gt; local
+  adjudication -&gt; MongoDB
+- Accepted: 100,000/100,000
+- Parse and submit: 299.77 seconds, 333.59 claims/sec
+- Last adjudication event: 501.45 seconds from request start
+- End-to-end throughput: 199.42 claims/sec
+- Terminal: 100,000/100,000
+- Import transactions: 100,000
+- Lifecycle events: 200,000
+- Final status: 100,000 business denials (expected for the deliberately reused COB-secondary
+  fixture; a valid business disposition, not a platform failure)
+- Peak observed active Service Bus backlog: approximately 39,000
+- Active/dead-letter after drain: 0/0
+- Pod restarts: 0
+- Error/exception log matches: 0
+
+Comparison with the prior clean raw-837 p32 run:
+
+| Run | Claims | Import concurrency | End-to-end throughput | Result |
+|---|---:|---:|---:|---|
+| Prior p32 | 10,000 | 32 | 139.09 claims/sec | Clean |
+| p64 smoke | 10,000 | 64 | 200.00 claims/sec | Clean |
+| p64 sustained | 100,000 | 64 | 199.42 claims/sec | Clean |
+
+The 100K p64 result is 43.4% faster than the prior p32 result while preserving complete
+acceptance, terminal persistence, event evidence, and an empty dead-letter queue.
+
+## What remains open
+
+- Add post-window reconciliation so the MCC validator can distinguish delayed completion from
+  permanent failure without manual MongoDB verification.
+- Re-score the 122 delayed claims after reconciliation, including the 20 workflow checks and 18
+  payment comparisons they contained.
+- Treat importer concurrency 64 as locally validated; production defaults still require
+  environment-specific capacity testing.
+- Repeat on AKS after trial-subscription quota is available. No AKS result is claimed here.
+</pre></details></section>
+  </main>
+</body>
+</html>

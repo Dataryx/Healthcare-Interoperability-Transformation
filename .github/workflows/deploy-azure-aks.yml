@@ -1,0 +1,813 @@
+name: Deploy to Azure (AKS + Container Apps)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - 'src/**'
+      - 'containers/**'
+      - 'infrastructure/k8s/**'
+      - 'infrastructure/azure/aks-main.bicep'
+      - '.github/workflows/deploy-azure-aks.yml'
+
+concurrency:
+  group: deploy-aks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Automatic Azure deploys are intentionally opt-in. This keeps main green
+  # while the Azure subscription is inactive, without removing the deployment
+  # workflow or the manual recovery path.
+  AZURE_DEPLOYMENTS_ENABLED: ${{ vars.AZURE_DEPLOYMENTS_ENABLED == 'true' || github.event_name == 'workflow_dispatch' }}
+  REGISTRY: ${{ vars.ACR_LOGIN_SERVER }}
+  NAMESPACE: cloudhealthoffice
+  AKS_NAME: ${{ vars.AKS_NAME || 'cho-aks' }}
+  ACA_SITE_NAME: ${{ vars.ACA_SITE_NAME || 'cho-site' }}
+  RESOURCE_GROUP: ${{ vars.AZURE_RG_NAME || 'rg-cloudhealthoffice-prod' }}
+  SERVICEBUS_NAMESPACE: ${{ vars.SERVICEBUS_NAMESPACE || 'clouhealthoffice-messaging' }}
+  IMAGE_PREFIX: cloudhealthoffice
+  # Azure Key Vault secret provider — set these GitHub settings to enable:
+  # Repository variable: KEY_VAULT_NAME        Application Key Vault name (empty = use GitHub Secrets only)
+  # Repository secret:   AZURE_CLIENT_ID       Workload Identity client ID for OIDC login
+  # Repository secret:   AZURE_TENANT_ID       Azure AD tenant ID
+  # Repository secret:   AZURE_SUBSCRIPTION_ID Subscription containing the Key Vault
+
+jobs:
+  deployment-paused:
+    name: Azure deployment paused
+    if: ${{ vars.AZURE_DEPLOYMENTS_ENABLED != 'true' && github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped deployment
+        run: |
+          echo "::notice::Azure deployment is paused because vars.AZURE_DEPLOYMENTS_ENABLED is not 'true'."
+          echo "::notice::This is expected while the Azure subscription is inactive."
+          echo "::notice::Set repository variable AZURE_DEPLOYMENTS_ENABLED=true to restore automatic main-branch deploys."
+
+  # ─────────────────────────────────────────────────────────────
+  # Preflight: mirror .NET base images from MCR into ACR so the
+  # Dockerfile `FROM ${REGISTRY}/dotnet/...` lines resolve. Every
+  # service Dockerfile defaults REGISTRY to the app ACR, which means
+  # the base images must exist in ACR before any build job can run.
+  #
+  # `az acr import --force` is idempotent and server-side (the image
+  # is copied MCR → ACR inside Azure, never pulled through the GitHub
+  # runner), so it's safe and cheap to run on every workflow invocation.
+  # First run on a fresh ACR takes ~10s per image; subsequent runs are
+  # near-instant no-ops.
+  #
+  # Added after a regression in 71c9d37 that repointed 28 Dockerfiles
+  # at the ACR mirror without populating it, breaking every main deploy
+  # from Apr 9 onward with `dotnet/aspnet:8.0: not found`.
+  # ─────────────────────────────────────────────────────────────
+  ensure-base-images:
+    name: Ensure .NET Base Images Mirrored to ACR
+    if: ${{ vars.AZURE_DEPLOYMENTS_ENABLED == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Debug - whoami (temporary)
+        env:
+          CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          # Self-read only: prints the SP's directory *object* id, which is
+          # not itself a stored secret, so it's safe to log. Used to verify
+          # this matches the object id we've been granting RBAC roles to.
+          az ad sp show --id "$CLIENT_ID" --query "{objectId:id, displayName:displayName}" -o json
+
+          # Hash-only comparison: a sha256 digest is a one-way derived value,
+          # not the secret itself, so it's safe to print and gives an
+          # unambiguous comparison point (the earlier boolean-only check
+          # said MATCH, but actual behavior suggests otherwise -- want to
+          # rule out a bug in that comparison itself).
+          actual_sub=$(az account show --query id -o tsv)
+          echo "Subscription id sha256: $(echo -n "$actual_sub" | sha256sum)"
+          echo "Tenant id sha256: $(az account show --query tenantId -o tsv | tr -d '\n' | sha256sum)"
+          echo "(compare against locally-computed hash of 85bd1f0d-3a84-4070-a1d1-9358fa42c10e)"
+
+      - name: Debug - direct group/registry resolution (temporary)
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          RESOURCE_GROUP: ${{ env.RESOURCE_GROUP }}
+        run: |
+          echo "RESOURCE_GROUP='$RESOURCE_GROUP' ACR_NAME='$ACR_NAME'"
+          echo "--- az group show ---"
+          az group show --name "$RESOURCE_GROUP" -o json || echo "GROUP SHOW FAILED (exit $?)"
+          echo "--- az group list (subscription-wide) ---"
+          az group list --query "[].name" -o tsv || echo "GROUP LIST FAILED (exit $?)"
+          echo "--- az acr show ---"
+          az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" -o json || echo "ACR SHOW FAILED (exit $?)"
+
+      - name: Import .NET 8 base images from MCR
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ACR_NAME:-}" ]; then
+            echo "::error::vars.ACR_NAME is not set; cannot import base images"
+            exit 1
+          fi
+          # sdk:8.0 / aspnet:8.0 back the Debian-based services (the majority).
+          # sdk:8.0-alpine / aspnet:8.0-alpine back CHO.TerminologyService,
+          # whose Dockerfile pins the alpine variant for the smaller runtime
+          # footprint. Importing both pairs unconditionally keeps the
+          # preflight idempotent and covers every service Dockerfile currently
+          # in the matrix without each one needing its own import step.
+          for img in dotnet/sdk:8.0 dotnet/aspnet:8.0 dotnet/sdk:8.0-alpine dotnet/aspnet:8.0-alpine; do
+            echo "::group::Importing mcr.microsoft.com/${img} → ${ACR_NAME}.azurecr.io/${img}"
+            az acr import \
+              --name "$ACR_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --source "mcr.microsoft.com/${img}" \
+              --image "${img}" \
+              --force
+            echo "::endgroup::"
+          done
+
+  # ─────────────────────────────────────────────────────────────
+  # Build all images and push to ACR
+  # ─────────────────────────────────────────────────────────────
+  build-push-acr:
+    name: Build & Push to ACR
+    runs-on: ubuntu-latest
+    needs: ensure-base-images
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ vars.ACR_NAME }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push portal
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./src/portal/CloudHealthOffice.Portal/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-portal:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-portal:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Build and push site
+        uses: docker/build-push-action@v7
+        with:
+          context: ./src/site
+          file: ./src/site/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-site:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-site:sha-${{ github.sha }}
+          platforms: linux/amd64
+
+  build-push-services:
+    name: Build & Push Services (${{ matrix.service }})
+    needs: ensure-base-images
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        # All 33 .NET services need repo root as context (build_context: '.')
+        # to reach src/services/shared/CloudHealthOffice.Infrastructure/
+        # and/or src/engines/. Passed inline via the with: block below
+        # for every entry — replaces the per-entry include: overrides
+        # that previously carried the same value 33 times.
+        service:
+          - member-service
+          - coverage-service
+          - claims-service
+          - eligibility-service
+          - authorization-service
+          - attachment-service
+          - provider-service
+          - benefit-plan-service
+          - reference-data-service
+          - sponsor-service
+          - tenant-service
+          - enrollment-import-service
+          - trading-partner-service
+          - premium-billing-service
+          - appeals-service
+          - rfai-service
+          - payment-service
+          - fhir-service
+          - smart-auth-service
+          - risk-adjustment-service
+          - encounter-service
+          - provider-contracts-service
+          - ar-service
+          - claims-examiner-service
+          - CHO.TerminologyService
+          - CloudHealthOffice.PricingApi
+          - consent-service
+          - accumulator-service
+          - capitation-service
+          - encounter-submission-service
+          - member-document-service
+          - personal-representative-service
+        include:
+          # Image name overrides for the two PascalCase services. Repo
+          # convention treats the override value verbatim — no double
+          # prefixing. All other services fall through to the reusable
+          # workflow's default ${image_prefix}-${service} naming.
+          - service: CHO.TerminologyService
+            image_name: cloudhealthoffice-terminology-service
+          - service: CloudHealthOffice.PricingApi
+            image_name: cloudhealthoffice-pricing-api
+    uses: ./.github/workflows/_build-service-image.yml
+    with:
+      service: ${{ matrix.service }}
+      build_context: '.'
+      image_name: ${{ matrix.image_name || '' }}
+      push: true
+      registry: ${{ vars.ACR_LOGIN_SERVER }}
+      registry_name: ${{ vars.ACR_NAME }}
+    secrets:
+      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  build-push-containers:
+    name: Build & Push Containers (${{ matrix.container }})
+    runs-on: ubuntu-latest
+    needs: ensure-base-images
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - x12-parser
+          - x12-276-parser
+          - claims-publisher
+          - kafka-publisher
+          - sftp-fetcher
+          - x12-encoder
+          - metadata-extractor
+          - x12-834-parser
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ vars.ACR_NAME }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Check Dockerfile exists
+        id: check
+        run: |
+          if [ -f "./containers/${{ matrix.container }}/Dockerfile" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push ${{ matrix.container }}
+        if: steps.check.outputs.exists == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./containers/${{ matrix.container }}
+          file: ./containers/${{ matrix.container }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.container }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.container }}:sha-${{ github.sha }}
+          cache-from: type=gha
+          platforms: linux/amd64
+
+  # ─────────────────────────────────────────────────────────────
+  # Deploy marketing site to Azure Container Apps
+  # ─────────────────────────────────────────────────────────────
+  deploy-site:
+    name: Deploy Site → Azure Container Apps
+    runs-on: ubuntu-latest
+    needs: build-push-acr
+    permissions:
+      id-token: write
+      contents: read
+    environment: PROD
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update Container App image and fix health probes
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-site:sha-${{ github.sha }}"
+
+          # Update image via standard CLI
+          az containerapp update \
+            --name "${{ env.ACA_SITE_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --image "$IMAGE"
+
+          # Fix health probes: container listens on 8080 (nginx-unprivileged), not 80.
+          # Probes checking port 80 cause the revision to stay in "activating" state.
+          bash scripts/deploy/fix-aca-site-probes.sh \
+            "${{ env.ACA_SITE_NAME }}" \
+            "${{ env.RESOURCE_GROUP }}"
+
+      - name: Ensure ingress target port is 8080 and HTTPS-only
+        run: |
+          CURRENT_PORT=$(az containerapp show \
+            --name "${{ env.ACA_SITE_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "properties.configuration.ingress.targetPort" -o tsv || echo "")
+
+          CURRENT_ALLOW_INSECURE=$(az containerapp show \
+            --name "${{ env.ACA_SITE_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "properties.configuration.ingress.allowInsecure" -o tsv || echo "")
+
+          if [ "$CURRENT_PORT" = "8080" ] && [ "$CURRENT_ALLOW_INSECURE" = "false" ]; then
+            echo "Ingress already configured: port 8080, HTTPS-only. No update required."
+          else
+            echo "Updating ingress (port: '${CURRENT_PORT:-unknown}' -> 8080, allowInsecure: '${CURRENT_ALLOW_INSECURE:-unknown}' -> false)..."
+            az containerapp ingress update \
+              --name "${{ env.ACA_SITE_NAME }}" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --target-port 8080 \
+              --allow-insecure false
+          fi
+
+      - name: Get site URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name "${{ env.ACA_SITE_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "Site deployed to: https://$FQDN"
+
+  # ─────────────────────────────────────────────────────────────
+  # Deploy portal + services to AKS
+  # ─────────────────────────────────────────────────────────────
+  deploy-aks:
+    name: Deploy Portal & Services → AKS
+    runs-on: ubuntu-latest
+    needs: [build-push-acr, build-push-services]
+    permissions:
+      id-token: write
+      contents: read
+    environment: PROD
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --name "${{ env.AKS_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --overwrite-existing
+
+      # ── Fetch secrets from Azure Key Vault (if configured) ─────
+      # When KEY_VAULT_NAME is set, secrets are pulled from Key Vault
+      # and override the GitHub Secrets defaults below. When not set,
+      # the workflow falls back to GitHub Secrets as before.
+      - name: Fetch secrets from Azure Key Vault
+        if: vars.KEY_VAULT_NAME != ''
+        uses: azure/cli@v3
+        with:
+          azcliversion: latest
+          inlineScript: |
+            set -euo pipefail
+            KV="${{ vars.KEY_VAULT_NAME }}"
+
+            # fetch_secret <kv-secret-name> <ENV_VAR_NAME>
+            # Fetches from Key Vault, masks the value, and sets as env var
+            fetch_secret() {
+              local kv_name="$1"
+              local env_name="$2"
+              local value
+              value=$(az keyvault secret show --vault-name "$KV" --name "$kv_name" --query value -o tsv 2>/dev/null || echo "")
+              if [ -n "$value" ]; then
+                echo "::add-mask::${value}"
+                echo "${env_name}=${value}" >> "$GITHUB_ENV"
+                echo "  Fetched: $kv_name -> $env_name"
+              else
+                echo "  Not found: $kv_name (will fall back to GitHub Secret)"
+              fi
+            }
+
+            echo "Fetching secrets from Key Vault: $KV"
+
+            # Database
+            fetch_secret "CosmosDb--ConnectionString"   "KV_COSMOS_DB_CONNECTION_STRING"
+            fetch_secret "CosmosDb--Endpoint"            "KV_COSMOS_DB_ENDPOINT"
+            fetch_secret "CosmosDb--Key"                 "KV_COSMOS_DB_KEY"
+            fetch_secret "MongoDb--Username"             "KV_MONGODB_USERNAME"
+            fetch_secret "MongoDb--Password"             "KV_MONGODB_PASSWORD"
+
+            # Redis
+            fetch_secret "Redis--ConnectionString"       "KV_REDIS_CONNECTION_STRING"
+
+            # Service Bus
+            fetch_secret "ServiceBus--ConnectionString"  "KV_SERVICEBUS_CONNECTION_STRING"
+
+            # Kafka
+            fetch_secret "Kafka--SaslUsername"            "KV_KAFKA_SASL_USERNAME"
+            fetch_secret "Kafka--SaslPassword"            "KV_KAFKA_SASL_PASSWORD"
+
+            # Azure Storage
+            fetch_secret "Azure--StorageConnectionString" "KV_AZURE_STORAGE_CONNECTION_STRING"
+
+            # BatchEligibility (eligibility-service) fallback: Cosmos DB for
+            # NoSQL (Core/SQL API). Only used when MongoDB isn't configured --
+            # the k8s manifest wires BatchEligibility__MongoDb__ConnectionString
+            # from the same database-secret every other Mongo-backed service
+            # uses, and that's checked first (see
+            # BatchEligibilityServiceCollectionExtensions). Kept for
+            # environments that deliberately run Cosmos DB for NoSQL instead.
+            fetch_secret "BatchEligibility--CosmosDb--ConnectionString" "KV_BATCH_ELIGIBILITY_COSMOS_CONNECTION_STRING"
+
+            # Azure AD
+            fetch_secret "AzureAd--TenantId"             "KV_AZURE_AD_TENANT_ID"
+            fetch_secret "AzureAd--ClientId"             "KV_AZURE_AD_CLIENT_ID"
+            fetch_secret "AzureAd--ClientSecret"         "KV_AZURE_AD_CLIENT_SECRET"
+            fetch_secret "AzureAd--Audience"             "KV_AZURE_AD_AUDIENCE"
+
+            # Stripe
+            fetch_secret "Stripe--PublishableKey"         "KV_STRIPE_PUBLISHABLE_KEY"
+            fetch_secret "Stripe--SecretKey"              "KV_STRIPE_SECRET_KEY"
+            fetch_secret "Stripe--Price--Starter"         "KV_STRIPE_PRICE_STARTER"
+            fetch_secret "Stripe--Price--Professional"    "KV_STRIPE_PRICE_PROFESSIONAL"
+
+            # Pricing API
+            fetch_secret "PricingApi--AdminSecret"        "KV_PRICING_API_ADMIN_SECRET"
+
+            # Seed admin
+            fetch_secret "SeedAdmin--Email"               "KV_SEED_ADMIN_EMAIL"
+            fetch_secret "SeedAdmin--DisplayName"          "KV_SEED_ADMIN_DISPLAY_NAME"
+
+            # Email config
+            fetch_secret "Email--SmtpHost"                "KV_EMAIL_SMTP_HOST"
+            fetch_secret "Email--SmtpPort"                "KV_EMAIL_SMTP_PORT"
+            fetch_secret "Email--EnableSsl"               "KV_EMAIL_ENABLE_SSL"
+            fetch_secret "Email--FromAddress"              "KV_EMAIL_FROM_ADDRESS"
+            fetch_secret "Email--SalesTeamAddress"         "KV_EMAIL_SALES_TEAM_ADDRESS"
+            fetch_secret "Email--Username"                 "KV_EMAIL_USERNAME"
+            fetch_secret "Email--Password"                 "KV_EMAIL_PASSWORD"
+
+            echo "Key Vault secret fetch complete"
+
+      - name: Create namespace
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Service Bus secret
+        run: |
+          set -euo pipefail
+
+          # Prefer an operator-managed Key Vault/GitHub secret. On a fresh
+          # environment, create a least-privilege namespace authorization rule
+          # and retrieve its key through the already-authenticated Azure CLI.
+          CONN="${KV_SERVICEBUS_CONNECTION_STRING:-${{ secrets.SERVICEBUS_CONNECTION_STRING }}}"
+          if [ -z "$CONN" ]; then
+            az servicebus namespace show \
+              --name "${{ env.SERVICEBUS_NAMESPACE }}" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --output none
+
+            az servicebus namespace authorization-rule create \
+              --name claims-service \
+              --namespace-name "${{ env.SERVICEBUS_NAMESPACE }}" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --rights Listen Send \
+              --output none
+
+            CONN=$(az servicebus namespace authorization-rule keys list \
+              --name claims-service \
+              --namespace-name "${{ env.SERVICEBUS_NAMESPACE }}" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --query primaryConnectionString \
+              --output tsv)
+          fi
+
+          if [ -z "$CONN" ]; then
+            echo "::error::Unable to resolve a Service Bus connection string"
+            exit 1
+          fi
+
+          echo "::add-mask::$CONN"
+          kubectl create secret generic servicebus-secret \
+            --from-literal=connectionString="$CONN" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create database secret (MongoDB or CosmosDB)
+        run: |
+          # Key Vault env vars (KV_*) override GitHub Secrets when present
+          CONN="${KV_COSMOS_DB_CONNECTION_STRING:-${{ secrets.COSMOS_DB_CONNECTION_STRING }}}"
+          if [ -z "$CONN" ]; then
+            MONGO_USER="${KV_MONGODB_USERNAME:-${{ secrets.MONGODB_USERNAME }}}"
+            MONGO_PASS="${KV_MONGODB_PASSWORD:-${{ secrets.MONGODB_PASSWORD }}}"
+            : "${MONGO_USER:=admin}"
+            : "${MONGO_PASS:=admin}"
+            CONN="mongodb://${MONGO_USER}:${MONGO_PASS}@mongodb.cloudhealthoffice.svc.cluster.local:27017"
+            echo "No COSMOS_DB_CONNECTION_STRING set — using standalone MongoDB"
+          fi
+
+          # CosmosDB endpoint/key: leave empty when using standalone MongoDB
+          ENDPOINT="${KV_COSMOS_DB_ENDPOINT:-${{ secrets.COSMOS_DB_ENDPOINT }}}"
+          KEY="${KV_COSMOS_DB_KEY:-${{ secrets.COSMOS_DB_KEY }}}"
+
+          kubectl create secret generic database-secret \
+            --from-literal=connectionString="${CONN}" \
+            --from-literal=endpoint="${ENDPOINT}" \
+            --from-literal=key="${KEY}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create MongoDB auth secret (standalone StatefulSet credentials)
+        run: |
+          MONGO_USER="${KV_MONGODB_USERNAME:-${{ secrets.MONGODB_USERNAME }}}"
+          MONGO_PASS="${KV_MONGODB_PASSWORD:-${{ secrets.MONGODB_PASSWORD }}}"
+          : "${MONGO_USER:=admin}"
+          : "${MONGO_PASS:=admin}"
+          kubectl create secret generic mongodb-auth \
+            --from-literal=username="${MONGO_USER}" \
+            --from-literal=password="${MONGO_PASS}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Redis secret
+        run: |
+          kubectl create secret generic redis-secret \
+            --from-literal=connectionString="${KV_REDIS_CONNECTION_STRING:-${{ secrets.REDIS_CONNECTION_STRING }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Kafka secret
+        run: |
+          # bootstrapServers isn't actually sensitive (it's the in-cluster
+          # Strimzi bootstrap address), but 5 service manifests already
+          # source Kafka__BootstrapServers from this secret via
+          # secretKeyRef, so it's added here rather than introducing a
+          # second config path just for this one key.
+          kubectl create secret generic kafka-secret \
+            --from-literal=bootstrapServers="kafka.cloudhealthoffice:9092" \
+            --from-literal=saslUsername="${KV_KAFKA_SASL_USERNAME:-${{ secrets.KAFKA_SASL_USERNAME }}}" \
+            --from-literal=saslPassword="${KV_KAFKA_SASL_PASSWORD:-${{ secrets.KAFKA_SASL_PASSWORD }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Azure Storage secret
+        run: |
+          kubectl create secret generic azure-storage-secret \
+            --from-literal=connectionString="${KV_AZURE_STORAGE_CONNECTION_STRING:-${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create BatchEligibility Cosmos secret
+        run: |
+          kubectl create secret generic batch-eligibility-secret \
+            --from-literal=cosmosConnectionString="${KV_BATCH_ELIGIBILITY_COSMOS_CONNECTION_STRING:-${{ secrets.BATCH_ELIGIBILITY_COSMOS_CONNECTION_STRING }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Azure AD secret
+        run: |
+          kubectl create secret generic azure-ad-config \
+            --from-literal=TenantId="${KV_AZURE_AD_TENANT_ID:-${{ secrets.AZURE_AD_TENANT_ID }}}" \
+            --from-literal=ClientId="${KV_AZURE_AD_CLIENT_ID:-${{ secrets.AZURE_AD_CLIENT_ID }}}" \
+            --from-literal=ClientSecret="${KV_AZURE_AD_CLIENT_SECRET:-${{ secrets.AZURE_AD_CLIENT_SECRET }}}" \
+            --from-literal=Audience="${KV_AZURE_AD_AUDIENCE:-${{ secrets.AZURE_AD_AUDIENCE }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Stripe secret
+        run: |
+          kubectl create secret generic stripe-api-keys \
+            --from-literal=publishable-key="${KV_STRIPE_PUBLISHABLE_KEY:-${{ secrets.STRIPE_PUBLISHABLE_KEY }}}" \
+            --from-literal=secret-key="${KV_STRIPE_SECRET_KEY:-${{ secrets.STRIPE_SECRET_KEY }}}" \
+            --from-literal=starter-price-id="${KV_STRIPE_PRICE_STARTER:-${{ secrets.STRIPE_PRICE_STARTER }}}" \
+            --from-literal=professional-price-id="${KV_STRIPE_PRICE_PROFESSIONAL:-${{ secrets.STRIPE_PRICE_PROFESSIONAL }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Pricing API secret
+        run: |
+          kubectl create secret generic pricing-api-secret \
+            --from-literal=AdminSecret="${KV_PRICING_API_ADMIN_SECRET:-${{ secrets.PRICING_API_ADMIN_SECRET }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create seed admin secret
+        run: |
+          kubectl create secret generic seed-admin-secret \
+            --from-literal=email="${KV_SEED_ADMIN_EMAIL:-${{ secrets.SEED_ADMIN_EMAIL }}}" \
+            --from-literal=displayName="${KV_SEED_ADMIN_DISPLAY_NAME:-${{ secrets.SEED_ADMIN_DISPLAY_NAME }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create email config secret
+        run: |
+          kubectl create secret generic email-config \
+            --from-literal=SmtpHost="${KV_EMAIL_SMTP_HOST:-${{ secrets.EMAIL_SMTP_HOST }}}" \
+            --from-literal=SmtpPort="${KV_EMAIL_SMTP_PORT:-${{ secrets.EMAIL_SMTP_PORT }}}" \
+            --from-literal=EnableSsl="${KV_EMAIL_ENABLE_SSL:-${{ secrets.EMAIL_ENABLE_SSL }}}" \
+            --from-literal=FromAddress="${KV_EMAIL_FROM_ADDRESS:-${{ secrets.EMAIL_FROM_ADDRESS }}}" \
+            --from-literal=SalesTeamAddress="${KV_EMAIL_SALES_TEAM_ADDRESS:-${{ secrets.EMAIL_SALES_TEAM_ADDRESS }}}" \
+            --from-literal=Username="${KV_EMAIL_USERNAME:-${{ secrets.EMAIL_USERNAME }}}" \
+            --from-literal=Password="${KV_EMAIL_PASSWORD:-${{ secrets.EMAIL_PASSWORD }}}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply core manifests
+        run: |
+          kubectl apply -f infrastructure/k8s/namespaces.yaml
+
+          # cert-manager ClusterIssuer (requires cert-manager pre-installed on cluster)
+          kubectl apply -f infrastructure/k8s/cert-manager-issuer.yaml || \
+            echo "Warning: cert-manager ClusterIssuer apply failed – ensure cert-manager is installed"
+
+      - name: Install/upgrade nginx ingress controller
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --values infrastructure/helm/nginx-ingress-values.yaml \
+            --wait \
+            --timeout 5m
+
+      - name: Deploy Redis (distributed cache / session store)
+        run: |
+          kubectl apply -f infrastructure/k8s/redis-dataprotection.yaml
+          kubectl rollout status deployment/redis-dataprotection -n ${{ env.NAMESPACE }} --timeout=120s
+
+      - name: Deploy MongoDB (standalone fallback for DataProtection keys)
+        run: |
+          kubectl apply -f infrastructure/k8s/mongodb-deployment.yaml
+          kubectl rollout status statefulset/mongodb -n ${{ env.NAMESPACE }} --timeout=120s
+
+      - name: Substitute ACR image in portal deployment
+        run: |
+          ACR="${{ env.REGISTRY }}"
+          SHA="sha-${{ github.sha }}"
+          sed \
+            -e "s|ghcr.io/aurelianware/cloudhealthoffice-portal:latest|${ACR}/cloudhealthoffice-portal:${SHA}|g" \
+            src/portal/CloudHealthOffice.Portal/k8s/portal-deployment.yaml \
+            | kubectl apply -f -
+
+      - name: Apply backend service manifests
+        run: |
+          ACR="${{ env.REGISTRY }}"
+          SHA="sha-${{ github.sha }}"
+          # idcard-service/k8s/idcard-service-deployment.yaml is a
+          # comments-only alias pointing at the authoritative copy below --
+          # apply the real one instead of the placeholder the glob picks up.
+          #
+          # attachment-service, sponsor-service, and provider-verification-service
+          # each live outside src/services/<name>/k8s/ (deploy-local.sh has
+          # always applied them as explicit extra paths for the same reason) --
+          # the glob alone silently skipped all three, so sponsor-service in
+          # particular was never deployed to AKS at all despite being on the
+          # 834 enrollment on-ramp's critical path.
+          for manifest in src/services/*/k8s/*.yaml k8s/idcard-service.yaml \
+            infrastructure/k8s/services/attachment-service.yaml \
+            infrastructure/k8s/sponsor-service-deployment.yaml \
+            infrastructure/k8s/provider-verification-service-deployment.yaml; do
+            transformed=$(sed \
+              -e "s|clouhealthoffice.azurecr.io/cloudhealthoffice-|${ACR}/cloudhealthoffice-|g" \
+              -e "s|ghcr.io/aurelianware/cloudhealthoffice-|${ACR}/cloudhealthoffice-|g" \
+              -e "s|:latest|:${SHA}|g" \
+              "$manifest")
+            if ! grep -q "^kind:" <<< "$transformed"; then
+              echo "Skipping ${manifest} (no Kubernetes objects -- alias/placeholder file)"
+              continue
+            fi
+            echo "Applying ${manifest}..."
+            kubectl apply -f - <<< "$transformed"
+          done
+
+      - name: Deploy api-docs (Swagger UI + OpenAPI specs)
+        continue-on-error: true
+        run: |
+          kubectl apply -f infrastructure/k8s/services/api-docs.yaml
+          kubectl apply -f infrastructure/k8s/api-docs-ingress.yaml
+          kubectl rollout status deployment/api-docs -n ${{ env.NAMESPACE }} --timeout=120s
+
+          # Apply KEDA HTTP ScaledObject only if the CRD is present
+          if kubectl get crd httpscaledobjects.http.keda.sh >/dev/null 2>&1; then
+            echo "KEDA HTTP CRDs detected – applying api-docs ScaledObject..."
+            kubectl apply -f infrastructure/k8s/api-docs-scaledobject.yaml
+          else
+            echo "KEDA HTTP CRDs not found – skipping api-docs-scaledobject.yaml apply."
+          fi
+
+      - name: Apply portal ingress (portal.cloudhealthoffice.com)
+        run: kubectl apply -f infrastructure/k8s/portal-ingress.yaml
+
+      - name: Rollout restart portal
+        id: portal_rollout
+        continue-on-error: true
+        run: |
+          kubectl rollout restart deployment/portal -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/portal -n ${{ env.NAMESPACE }} --timeout=900s
+
+      - name: Diagnose portal rollout failure
+        if: steps.portal_rollout.outcome == 'failure'
+        run: |
+          echo "=== Portal Pod Status ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app=portal -o wide
+
+          echo ""
+          echo "=== Portal Pod Describe ==="
+          PORTAL_PODS=$(kubectl get pods -n ${{ env.NAMESPACE }} -l app=portal --no-headers -o custom-columns=":metadata.name")
+          for pod in $PORTAL_PODS; do
+            echo "--- $pod ---"
+            kubectl describe pod "$pod" -n ${{ env.NAMESPACE }}
+          done
+
+          echo ""
+          echo "=== Portal Pod Logs (last 100 lines) ==="
+          for pod in $PORTAL_PODS; do
+            echo "--- $pod ---"
+            kubectl logs "$pod" -n ${{ env.NAMESPACE }} --all-containers=true --tail=100 --timestamps || true
+            echo "--- Previous container logs (if any) ---"
+            kubectl logs "$pod" -n ${{ env.NAMESPACE }} --all-containers=true --previous --tail=50 --timestamps || true
+          done
+
+          echo ""
+          echo "=== ReplicaSet Events ==="
+          kubectl get rs -n ${{ env.NAMESPACE }} -l app=portal -o wide
+          kubectl describe rs -n ${{ env.NAMESPACE }} -l app=portal | tail -30
+
+          echo ""
+          echo "=== Deployment Events ==="
+          kubectl describe deployment/portal -n ${{ env.NAMESPACE }} | grep -A 20 "Events:" || true
+
+      - name: Fail if portal rollout failed
+        if: steps.portal_rollout.outcome == 'failure'
+        run: exit 1
+
+      - name: Deployment summary
+        run: |
+          echo "=== Deployment Summary ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} --no-headers | head -20
+          echo ""
+          echo "=== Ingress ==="
+          kubectl get ingress -n ${{ env.NAMESPACE }}
+          echo ""
+          PORTAL_IP=$(kubectl get ingress portal-ingress -n ${{ env.NAMESPACE }} \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          echo "Portal ingress IP: $PORTAL_IP"
+          echo ""
+          echo "DNS to configure:"
+          echo "  portal.cloudhealthoffice.com      →  A  $PORTAL_IP"
+          echo "  api.cloudhealthoffice.com          →  A  $PORTAL_IP"
+          echo "  sandbox.cloudhealthoffice.com      →  A  $PORTAL_IP"

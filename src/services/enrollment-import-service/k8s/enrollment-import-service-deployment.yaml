@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: enrollment-import-service-config
+  namespace: cloudhealthoffice
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  MongoDb__DatabaseName: "cloudhealthoffice"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enrollment-import-service
+  namespace: cloudhealthoffice
+  labels:
+    app: enrollment-import-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enrollment-import-service
+  template:
+    metadata:
+      labels:
+        app: enrollment-import-service
+        tier: backend
+    spec:
+      containers:
+      - name: enrollment-import-service
+        image: clouhealthoffice.azurecr.io/cloudhealthoffice-enrollment-import-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: enrollment-import-service-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: MongoDb__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: connectionString
+        - name: MongoDb__DatabaseName
+          valueFrom:
+            configMapKeyRef:
+              name: enrollment-import-service-config
+              key: MongoDb__DatabaseName
+        - name: Services__MemberService
+          value: "http://member-service"
+        - name: Services__SponsorService
+          value: "http://sponsor-service"
+        - name: Services__BenefitPlanService
+          value: "http://benefit-plan-service"
+        - name: Services__CoverageService
+          value: "http://coverage-service"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enrollment-import-service
+  namespace: cloudhealthoffice
+  labels:
+    app: enrollment-import-service
+spec:
+  type: ClusterIP
+  selector:
+    app: enrollment-import-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP

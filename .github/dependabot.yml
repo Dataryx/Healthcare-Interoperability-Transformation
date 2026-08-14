@@ -1,0 +1,197 @@
+version: 2
+updates:
+  # ============================================================
+  # npm — Root project
+  # ============================================================
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "aurelianware"
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ============================================================
+  # npm — X12 834 Parser container
+  # ============================================================
+  - package-ecosystem: "npm"
+    directory: "/containers/x12-834-parser"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "aurelianware"
+    labels:
+      - "dependencies"
+      - "npm"
+      - "containers"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      x12-834-parser-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ============================================================
+  # NuGet — .NET Microservices (all under src/services/)
+  # Uses "directories" to avoid repeating config per service.
+  # ============================================================
+  - package-ecosystem: "nuget"
+    directories:
+      - "/src/services/appeals-service"
+      - "/src/services/ar-service"
+      - "/src/services/attachment-service"
+      - "/src/services/authorization-service"
+      - "/src/services/benefit-plan-service"
+      - "/src/services/capitation-service"
+      - "/src/services/CHO.TerminologyService"
+      - "/src/services/claims-service"
+      - "/src/services/CloudHealthOffice.PricingApi"
+      - "/src/services/coverage-service"
+      - "/src/services/eligibility-service"
+      - "/src/services/encounter-service"
+      - "/src/services/enrollment-import-service"
+      - "/src/services/ffs-service"
+      - "/src/services/fhir-service"
+      - "/src/services/member-service"
+      - "/src/services/payment-service"
+      - "/src/services/premium-billing-service"
+      - "/src/services/provider-contracts-service"
+      - "/src/services/provider-service"
+      - "/src/services/reference-data-service"
+      - "/src/services/rfai-service"
+      - "/src/services/risk-adjustment-service"
+      - "/src/services/smart-auth-service"
+      - "/src/services/sponsor-service"
+      - "/src/services/tenant-service"
+      - "/src/services/trading-partner-service"
+      - "/src/services/provider-verification-service"
+      - "/src/services/shared/CloudHealthOffice.Infrastructure"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "02:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "aurelianware"
+    labels:
+      - "dependencies"
+      - "dotnet"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      dotnet-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ============================================================
+  # NuGet — Engines
+  # ============================================================
+  - package-ecosystem: "nuget"
+    directories:
+      - "/src/engines/CloudHealthOffice.BenefitEngine"
+      - "/src/engines/CloudHealthOffice.ClaimsScrubEngine"
+      - "/src/engines/CloudHealthOffice.CobEngine"
+      - "/src/engines/CloudHealthOffice.DocumentStore"
+      - "/src/engines/CloudHealthOffice.EncounterEngine"
+      - "/src/engines/CloudHealthOffice.FeeScheduleEngine"
+      - "/src/engines/CloudHealthOffice.NcciEngine"
+      - "/src/engines/CloudHealthOffice.OperatingMode"
+      - "/src/engines/CloudHealthOffice.RiskAdjustmentEngine"
+      - "/src/engines/CloudHealthOffice.ProviderVerificationEngine"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "aurelianware"
+    labels:
+      - "dependencies"
+      - "dotnet"
+      - "engines"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      dotnet-engines-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ============================================================
+  # Docker — Base images
+  # ============================================================
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "aurelianware"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ============================================================
+  # GitHub Actions
+  # ============================================================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "aurelianware"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      github-actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"

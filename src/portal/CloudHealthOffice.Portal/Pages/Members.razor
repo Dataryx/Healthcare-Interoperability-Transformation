@@ -1,0 +1,281 @@
+@page "/members"
+@using Microsoft.AspNetCore.Authorization
+@using CloudHealthOffice.Portal.Services
+@attribute [Authorize]
+@inject IMemberService MemberService
+@inject ICoverageService CoverageService
+@inject IDialogService DialogService
+
+<PageTitle>Members - Cloud Health Office</PageTitle>
+
+<PermissionGate Permission="members:read" RoleName="MemberServices">
+<MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h3" GutterBottom="true">
+        <MudIcon Icon="@Icons.Material.Filled.People" Class="mr-2" />
+        Members
+    </MudText>
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">
+        Search and manage member information
+    </MudText>
+
+    @if (_serviceError != null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _serviceError = null">@_serviceError</MudAlert>
+    }
+
+    <!-- Search Form -->
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="_memberIdSearch"
+                             Label="Member ID"
+                             Placeholder="Exact match"
+                             Variant="Variant.Outlined"
+                             OnKeyUp="OnSearchKeyUp" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="_lastNameSearch"
+                             Label="Last Name"
+                             Placeholder="Starts with..."
+                             Variant="Variant.Outlined"
+                             OnKeyUp="OnSearchKeyUp" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="_dobSearch"
+                             Label="Date of Birth"
+                             Placeholder="MM/DD/YYYY"
+                             Variant="Variant.Outlined"
+                             OnKeyUp="OnSearchKeyUp" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudGrid Spacing="1">
+                    <MudItem xs="8">
+                        <MudButton Variant="Variant.Filled"
+                                  Color="Color.Primary"
+                                  FullWidth="true"
+                                  OnClick="SearchMembers"
+                                  Disabled="_loading">
+                            <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
+                            Search
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="4">
+                        <MudButton Variant="Variant.Outlined"
+                                  Color="Color.Default"
+                                  FullWidth="true"
+                                  OnClick="ClearSearch"
+                                  Disabled="_loading">
+                            Clear
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+
+        @if (_showValidationMessage)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-3" Dense="true">
+                Please enter at least one search criterion.
+            </MudAlert>
+        }
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+    }
+    else if (_hasSearched && _members.Any())
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+            Showing @_members.Count member(s)
+        </MudText>
+
+        <!-- Results Table -->
+        <MudPaper Elevation="2">
+            <MudTable Items="_members"
+                     Hover="true"
+                     Breakpoint="Breakpoint.Sm"
+                     Dense="true"
+                     Striped="true">
+                <HeaderContent>
+                    <MudTh>Member ID</MudTh>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Date of Birth</MudTh>
+                    <MudTh>Coverage Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Member ID">
+                        <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.MemberId</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Name">
+                        <MudText Typo="Typo.body2">@context.FirstName @context.LastName</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Date of Birth">
+                        <MudText Typo="Typo.body2">@context.DateOfBirth.ToString("MM/dd/yyyy")</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Coverage Status">
+                        <MudChip Size="Size.Small"
+                                Color="@GetStatusColor(context.DisplayStatus)">
+                            @context.DisplayStatus
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudButton Variant="Variant.Text"
+                                  Color="Color.Primary"
+                                  Size="Size.Small"
+                                  OnClick="@(() => ViewMemberDetails(context.MemberId))">
+                            View Details
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    }
+    else if (_hasSearched)
+    {
+        <MudPaper Class="pa-8 text-center" Elevation="2">
+            <MudIcon Icon="@Icons.Material.Filled.PersonOff" Size="Size.Large" Color="Color.Secondary" />
+            <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">No members found</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Try adjusting your search criteria</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="pa-8 text-center" Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.ManageSearch" Size="Size.Large" Color="Color.Secondary" />
+            <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">Search for a member to view details</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Enter Member ID, last name, or date of birth above</MudText>
+        </MudPaper>
+    }
+</MudContainer>
+</PermissionGate>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "memberId")]
+    public string? RequestedMemberId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "open")]
+    public bool OpenRequestedMember { get; set; }
+
+    private string _memberIdSearch = string.Empty;
+    private string _lastNameSearch = string.Empty;
+    private string _dobSearch = string.Empty;
+    private List<MemberSummary> _members = new();
+    private bool _loading = false;
+    private bool _hasSearched = false;
+    private bool _showValidationMessage = false;
+    private string? _serviceError;
+    private string? _handledMemberQuery;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var requestedMemberId = RequestedMemberId?.Trim();
+        if (string.IsNullOrWhiteSpace(requestedMemberId) ||
+            string.Equals(requestedMemberId, _handledMemberQuery, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _handledMemberQuery = requestedMemberId;
+        _memberIdSearch = requestedMemberId;
+        await SearchMembers();
+
+        if (OpenRequestedMember && _members.Count == 1)
+        {
+            await ViewMemberDetails(_members[0].MemberId);
+        }
+    }
+
+    private bool HasCriteria =>
+        !string.IsNullOrWhiteSpace(_memberIdSearch) ||
+        !string.IsNullOrWhiteSpace(_lastNameSearch) ||
+        !string.IsNullOrWhiteSpace(_dobSearch);
+
+    private async Task SearchMembers()
+    {
+        if (!HasCriteria)
+        {
+            _showValidationMessage = true;
+            return;
+        }
+
+        _showValidationMessage = false;
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Pass the most specific criterion to the service (ID > name > DOB)
+            var term = !string.IsNullOrWhiteSpace(_memberIdSearch) ? _memberIdSearch
+                     : !string.IsNullOrWhiteSpace(_lastNameSearch) ? _lastNameSearch
+                     : _dobSearch;
+
+            _members = await MemberService.SearchMembersAsync(term);
+            _hasSearched = true;
+        }
+        catch (ServiceUnavailableException ex)
+        {
+            _serviceError = ex.Message;
+            _members = new();
+            _hasSearched = true;
+        }
+        catch
+        {
+            _members = new();
+            _hasSearched = true;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearSearch()
+    {
+        _memberIdSearch = string.Empty;
+        _lastNameSearch = string.Empty;
+        _dobSearch = string.Empty;
+        _members = new();
+        _hasSearched = false;
+        _showValidationMessage = false;
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await SearchMembers();
+    }
+
+    private Color GetStatusColor(string status)
+    {
+        return status.ToLowerInvariant() switch
+        {
+            "active" => Color.Success,
+            "pending" => Color.Warning,
+            "inactive" => Color.Error,
+            "terminated" => Color.Default,
+            _ => Color.Info
+        };
+    }
+
+    private async Task ViewMemberDetails(string memberId)
+    {
+        var parameters = new DialogParameters
+        {
+            { "MemberId", memberId }
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        await DialogService.ShowAsync<MemberDetailsDialog>("Member Details", parameters, options);
+    }
+}

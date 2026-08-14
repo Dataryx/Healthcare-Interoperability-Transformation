@@ -1,0 +1,95 @@
+# Configuration for actions/labeler
+# Automatically labels PRs based on changed files
+
+# Infrastructure labels
+infrastructure:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'infrastructure/**/*'
+          - '*.bicep'
+
+# CI/CD labels
+ci/cd:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**/*'
+          - '.github/actions/**/*'
+
+# Documentation labels
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
+
+# Configuration labels
+configuration:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'config/**/*'
+          - '*.json'
+          - '*.yml'
+          - '*.yaml'
+
+# Security-related changes
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'SECURITY.md'
+          - '**/security/**/*'
+          - '**/*security*'
+
+# Schema/EDI labels
+edi/x12:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'schemas/**/*'
+          - '*.xsd'
+          - '*.edi'
+
+# PowerShell scripts
+scripts:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.ps1'
+          - 'scripts/**/*'
+
+# Test files
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'test-*'
+          - '**/*.test.*'
+          - '**/__tests__/**/*'
+
+# Dependencies
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'package-lock.json'
+          - 'requirements.txt'
+          - '*.csproj'
+
+# GitHub configuration
+github-config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**/*'
+          - '!.github/workflows/**/*'
+
+# API connections
+api-connections:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/connections.json'
+          - '**/api-connections*'
+
+# HIPAA compliance
+hipaa:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/hipaa*'
+          - '**/HIPAA*'
+          - '**/phi*'
+          - '**/PHI*'

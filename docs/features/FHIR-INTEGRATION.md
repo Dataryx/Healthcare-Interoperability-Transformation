@@ -1,0 +1,3439 @@
+> **Note:** This document references Azure Logic Apps, which were the original orchestration runtime. CHO has since migrated to Argo Workflows on AKS — see [ADR-004](../adr/004-remove-logic-apps.md) for details.
+
+# FHIR R4 Integration Guide - CMS-0057-F Eligibility, Claims & Prior Authorization
+
+**Cloud Health Office** - HIPAA-compliant FHIR R4 integration for payer systems
+
+This guide explains how Cloud Health Office maps HIPAA X12 transactions to HL7 FHIR R4 resources to satisfy CMS-0057-F Prior Authorization, CMS-9115-F Patient Access, and related interoperability mandates.
+
+**Comprehensive Coverage:**
+- **Eligibility Verification** (X12 270/271 ↔ FHIR)
+- **Prior Authorization** (X12 278 ↔ FHIR) - CMS-0057-F compliant
+- **Da Vinci Implementation Guides** (CRD, DTR, PAS)
+- **Attachment Support** (Binary resources)
+- **SLA Tracking** (72-hour standard, 24-hour urgent)
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [CMS-0057-F Compliance](#cms-0057-f-compliance)
+- [Patient Access API (CMS-0057-F & CMS-9115-F)](#patient-access-api-cms-0057-f--cms-9115-f)
+  - [Key Features](#key-features)
+  - [Supported Resources](#supported-resources)
+  - [Authentication Flow](#authentication-flow-oauth-20)
+  - [API Endpoints](#api-endpoints)
+  - [X12 to FHIR Mapping](#x12-to-fhir-mapping)
+  - [Security & Compliance](#security--compliance)
+  - [Testing](#testing)
+- [Provider Access API (CMS-0057-F)](#provider-access-api-cms-0057-f)
+- [Architecture](#architecture)
+- [X12 270 to FHIR R4 Mapping](#x12-270-to-fhir-r4-mapping)
+- [Payer-to-Payer Data Exchange (CMS-0057-F)](#payer-to-payer-data-exchange-cms-0057-f)
+- [Payer-to-Payer Testing](#payer-to-payer-testing)
+- [Usage Examples](#usage-examples)
+- [Native HTTP Integration](#native-http-integration)
+- [Eligibility API Endpoints](#eligibility-api-endpoints)
+- [Provider Access Testing](#provider-access-testing)
+- [Security and HIPAA Compliance](#security-and-hipaa-compliance)
+- [Roadmap](#roadmap)
+- [Support](#support)
+- [References](#references)
+- [Prior Authorization Overview](#prior-authorization-overview)
+- [Prior Authorization Architecture](#prior-authorization-architecture)
+- [X12 278 to FHIR R4 Mapping](#x12-278-to-fhir-r4-mapping)
+- [Decision Timeline & SLA Compliance](#decision-timeline--sla-compliance)
+- [Attachment Handling](#attachment-handling)
+- [Da Vinci CRD Integration](#da-vinci-crd-integration)
+- [Clearinghouse Integration](#clearinghouse-integration)
+- [Prior Authorization API Endpoints](#api-endpoints-1)
+- [Prior Authorization Testing](#testing-1)
+- [Compliance FAQ](#compliance-faq)
+
+---
+
+## Overview
+
+Cloud Health Office provides comprehensive FHIR R4 integration for healthcare payer systems, enabling seamless conversion between traditional X12 EDI transactions and modern FHIR APIs. This implementation now includes full CMS-0057-F support with complete transaction coverage:
+
+### Supported Transactions
+
+- **X12 270/271**: Health Care Eligibility Benefit Inquiry/Response (EDI ↔ FHIR)
+- **X12 837**: Professional/Institutional Claims (EDI → FHIR Claim)
+- **X12 278**: Prior Authorization Request/Response (EDI → FHIR ServiceRequest)
+- **X12 835**: Electronic Remittance Advice (EDI → FHIR ExplanationOfBenefit)
+
+### Provider Access Key Features
+
+✅ **CMS-0057-F Compliant**: Full Prior Authorization Final Rule implementation  
+✅ **Standards Compliant**: HIPAA X12 005010 series and HL7 FHIR R4  
+✅ **CMS Patient Access Ready**: Supports CMS-9115-F final rule requirements  
+✅ **US Core + Da Vinci**: US Core IG v3.1.1+ and Da Vinci PAS/PDex/CRD/DTR  
+✅ **Compliance Checker**: Automated validation against CMS rules and timelines  
+✅ **Azure FHIR Integration**: Profile validation via Azure API for FHIR  
+✅ **Production Ready**: 45 comprehensive tests with 100% pass rate  
+✅ **TypeScript Native**: Type-safe implementation with @types/fhir
+
+---
+
+## CMS-0057-F Compliance
+
+### CMS Interoperability and Prior Authorization Final Rule
+
+**CMS-0057-F** (Advancing Interoperability and Improving Prior Authorization Processes) requires payers to implement FHIR-based APIs for prior authorization and patient data exchange. Our implementation provides complete coverage:
+
+### CMS-0057-F Requirements
+
+1. **Prior Authorization API (§438.242(c))**
+   - FHIR-based prior authorization submission and status
+   - ServiceRequest resource for authorization requests
+   - Real-time decision support (Da Vinci CRD)
+   - Documentation templates (Da Vinci DTR)
+   
+2. **Patient Access API (§438.242(b)(2))** ✅ **NEW**
+   - FHIR R4-based API for patient data access with OAuth 2.0
+   - Claim resources via X12 837 mapping
+   - Encounter data in standardized format
+   - ExplanationOfBenefit via X12 835 mapping
+   - CoverageEligibilityResponse for benefits information
+   - PHI redaction and audit logging
+   
+3. **Provider Access API (§438.242(b)(3))**
+   - Access to patient data for in-network providers
+   - Claims status and remittance information
+   - Prior authorization status and decisions
+
+4. **Payer-to-Payer Data Exchange (§438.242(b)(4))**
+   - Interoperable patient data exchange via FHIR
+   - 5-year historical data requirement
+   - US Core Data for Interoperability (USCDI) compliance
+
+### CMS-9115-F Patient Access Final Rule
+
+The Patient Access final rule (effective July 1, 2021) requires most payers to provide patients with access to their health information through standardized APIs. Our FHIR R4 implementation supports these requirements:
+
+#### Required API Capabilities
+
+1. **Patient Access API**
+   - FHIR R4-based API for patient data access
+   - Patient resource with demographics
+   - Coverage information via FHIR resources
+   - Claims and encounter data (when available)
+
+2. **Provider Directory API**
+   - Provider information in FHIR format
+   - Network status and relationships
+
+3. **Payer-to-Payer Data Exchange**
+   - Interoperable patient data exchange
+   - 5-year historical data requirement
+
+#### Our Implementation
+
+```typescript
+// X12 270 Eligibility Inquiry → FHIR R4 Patient + CoverageEligibilityRequest
+const { patient, eligibility } = mapX12270ToFhirEligibility(x12_270_data);
+
+// Results in compliant FHIR R4 resources:
+// - Patient: US Core Patient profile
+// - CoverageEligibilityRequest: Standard FHIR R4
+```
+
+### CMS-0057-F Payer-to-Payer Exchange Rule
+
+The Payer-to-Payer Exchange rule (effective 2027) requires payers to exchange patient clinical and administrative data when members change health plans. Our implementation supports:
+
+- **Bulk Data Operations**: Export/import via FHIR Bulk Data Access IG (NDJSON format)
+- **Member Matching**: HL7 Da Vinci PDex IG compliant matching algorithm
+- **Consent Management**: Opt-in consent flows per CMS requirements
+- **5-Year History**: Support for historical data exchange
+- **Resource Types**: Patient, Claim, Encounter, ExplanationOfBenefit, PriorAuthorizationRequest
+
+### Standards References
+
+- **CMS-9115-F**: Interoperability and Patient Access Final Rule
+- **CMS-0057-F**: Prior Authorization API (March 2023, Effective January 1, 2026)
+- **CMS-0057-F**: Provider Access API (March 2023, Effective January 1, 2027)
+- **CMS-0057-F**: Payer-to-Payer Exchange Final Rule (effective 2027)
+- **X12 005010X279A1**: Health Care Eligibility Benefit Inquiry and Response
+- **HL7 FHIR R4**: v4.0.1 Specification
+- **FHIR Bulk Data Access IG**: Flat FHIR (NDJSON) format
+- **US Core 3.1.1**: US Core Implementation Guide
+- **Da Vinci PDex**: Payer Data Exchange Implementation Guide
+- **SMART on FHIR**: Authorization framework for healthcare apps
+
+---
+
+## Patient Access API (CMS-0057-F & CMS-9115-F)
+
+The Patient Access API enables patients to securely access their own health data through third-party applications using OAuth 2.0 authentication via Azure AD. This implementation aligns with CMS-0057-F and CMS-9115-F requirements effective January 1, 2026.
+
+### Key Features
+
+✅ **OAuth 2.0 Authentication** - Patient consent via Azure AD for third-party applications  
+✅ **CMS-0057-F Compliant** - Meets all Patient Access API requirements  
+✅ **FHIR R4 Endpoints** - Patient, Claim, Encounter, EOB, CoverageEligibilityResponse  
+✅ **X12 to FHIR Mapping** - Automated conversion of X12 837 (Claims) and 835 (Remittances)  
+✅ **PHI Redaction** - Automatic redaction of sensitive health information  
+✅ **HIPAA Audit Logging** - Complete audit trail for all data access  
+✅ **US Core v3.1.1 Compliance** - US Core Patient profile and USCDI data elements  
+✅ **Da Vinci PDex Alignment** - Compatible with Payer Data Exchange Implementation Guide  
+
+### Supported Resources
+
+The Patient Access API supports the following FHIR R4 resources:
+
+| Resource Type | Purpose | X12 Source | Standards |
+|---------------|---------|------------|-----------|
+| **Patient** | Patient demographics and identifiers | Backend | US Core v3.1.1 |
+| **Claim** | Professional, Institutional, Dental claims | X12 837 | FHIR R4 |
+| **Encounter** | Clinical encounters and visits | Backend | FHIR R4 |
+| **ExplanationOfBenefit** | Claim adjudication and payment details | X12 835 | FHIR R4 |
+| **CoverageEligibilityResponse** | Benefits and eligibility information | Backend | FHIR R4 |
+
+### Authentication Flow (OAuth 2.0)
+
+The Patient Access API uses OAuth 2.0 for secure patient authentication:
+
+```text
+1. Patient authorizes third-party app via Azure AD
+   ↓
+2. Patient authenticates with Azure AD credentials
+   ↓
+3. Patient grants consent for data access scopes
+   ↓
+4. Access token issued with patient context
+   ↓
+5. Third-party app makes FHIR API requests with Bearer token
+   ↓
+6. API validates token, checks consent, returns FHIR resources
+   ↓
+7. All access logged to audit trail (HIPAA compliance)
+```
+
+### API Endpoints
+
+#### GET /Patient/{id}
+
+Retrieve patient demographics (US Core Patient profile v3.1.1).
+
+**Request:**
+```http
+GET /Patient/PAT123
+Authorization: Bearer {oauth2_access_token}
+```
+
+**Response:**
+```json
+{
+  "resourceType": "Patient",
+  "id": "PAT123",
+  "meta": {
+    "profile": ["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"]
+  },
+  "identifier": [{
+    "system": "http://example.org/fhir/member-id",
+    "value": "PAT123"
+  }],
+  "name": [{
+    "use": "official",
+    "family": "Doe",
+    "given": ["John"]
+  }],
+  "gender": "male",
+  "birthDate": "1980-01-01",
+  "address": [{
+    "use": "home",
+    "line": ["123 Main St"],
+    "city": "Boston",
+    "state": "MA",
+    "postalCode": "02101"
+  }]
+}
+```
+
+#### GET /Claim?patient={id}
+
+Search claims for a patient (mapped from X12 837 Professional/Institutional/Dental).
+
+**Request:**
+```http
+GET /Claim?patient=PAT123&date=ge2024-01-01
+Authorization: Bearer {oauth2_access_token}
+```
+
+**Response:**
+```json
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 2,
+  "link": [{
+    "relation": "self",
+    "url": "/Claim?patient=PAT123"
+  }],
+  "entry": [{
+    "fullUrl": "Claim/CLM001",
+    "resource": {
+      "resourceType": "Claim",
+      "id": "CLM001",
+      "status": "active",
+      "type": {
+        "coding": [{
+          "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+          "code": "professional"
+        }]
+      },
+      "use": "claim",
+      "patient": {
+        "reference": "Patient/PAT123"
+      },
+      "billablePeriod": {
+        "start": "2024-03-15"
+      },
+      "total": {
+        "value": 250.00,
+        "currency": "USD"
+      }
+    }
+  }]
+}
+```
+
+#### GET /Encounter?patient={id}
+
+Search encounters for a patient.
+
+**Request:**
+```http
+GET /Encounter?patient=PAT123&status=finished
+Authorization: Bearer {oauth2_access_token}
+```
+
+**Response:**
+```json
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 5,
+  "entry": [{
+    "fullUrl": "Encounter/ENC001",
+    "resource": {
+      "resourceType": "Encounter",
+      "id": "ENC001",
+      "status": "finished",
+      "class": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "AMB",
+        "display": "ambulatory"
+      },
+      "subject": {
+        "reference": "Patient/PAT123"
+      },
+      "period": {
+        "start": "2024-03-15T09:00:00Z",
+        "end": "2024-03-15T10:30:00Z"
+      }
+    }
+  }]
+}
+```
+
+#### GET /ExplanationOfBenefit?patient={id}
+
+Search Explanation of Benefit resources (mapped from X12 835 Remittance Advice).
+
+**Request:**
+```http
+GET /ExplanationOfBenefit?patient=PAT123
+Authorization: Bearer {oauth2_access_token}
+```
+
+**Response:**
+```json
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 3,
+  "entry": [{
+    "fullUrl": "ExplanationOfBenefit/EOB001",
+    "resource": {
+      "resourceType": "ExplanationOfBenefit",
+      "id": "EOB001",
+      "status": "active",
+      "type": {
+        "coding": [{
+          "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+          "code": "professional"
+        }]
+      },
+      "use": "claim",
+      "patient": {
+        "reference": "Patient/PAT123"
+      },
+      "outcome": "complete",
+      "payment": {
+        "amount": {
+          "value": 200.00,
+          "currency": "USD"
+        },
+        "date": "2024-04-01"
+      }
+    }
+  }]
+}
+```
+
+#### GET /CoverageEligibilityResponse?patient={id}
+
+Search coverage eligibility responses for a patient.
+
+**Request:**
+```http
+GET /CoverageEligibilityResponse?patient=PAT123
+Authorization: Bearer {oauth2_access_token}
+```
+
+**Response:**
+```json
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 1,
+  "entry": [{
+    "fullUrl": "CoverageEligibilityResponse/ELIG001",
+    "resource": {
+      "resourceType": "CoverageEligibilityResponse",
+      "id": "ELIG001",
+      "status": "active",
+      "purpose": ["benefits"],
+      "patient": {
+        "reference": "Patient/PAT123"
+      },
+      "outcome": "complete"
+    }
+  }]
+}
+```
+
+### Usage Example (TypeScript)
+
+```typescript
+import { PatientAccessApi } from './src/fhir/patient-access-api';
+
+// Initialize API
+const api = new PatientAccessApi(process.env.ENCRYPTION_KEY);
+
+// Authenticate patient with OAuth 2.0 token
+const token = 'oauth2-bearer-token-from-azure-ad';
+
+// Get patient demographics
+const patient = await api.getPatient('PAT123', token);
+console.log(`Patient: ${patient.name[0].given[0]} ${patient.name[0].family}`);
+
+// Search claims
+const claimsBundle = await api.searchClaims(
+  { resourceType: 'Claim', patient: 'PAT123' },
+  token
+);
+console.log(`Found ${claimsBundle.total} claims`);
+
+// Search EOBs (from X12 835 remittances)
+const eobBundle = await api.searchExplanationOfBenefit(
+  { resourceType: 'ExplanationOfBenefit', patient: 'PAT123' },
+  token
+);
+console.log(`Found ${eobBundle.total} EOBs`);
+
+// Review audit logs
+const logs = api.getAuditLogs();
+console.log(`Audit events: ${logs.length}`);
+```
+
+### X12 to FHIR Mapping
+
+The Patient Access API automatically converts X12 EDI transactions to FHIR resources:
+
+#### X12 837 → FHIR Claim
+
+```typescript
+import { mapX12837ToFhirClaim } from './src/fhir/mapping/x12-to-fhir';
+
+const x12Claim: X12_837_Claim = {
+  claimId: 'CLM12345',
+  claimType: 'P', // Professional
+  totalChargeAmount: 250.00,
+  patient: {
+    memberId: 'MEM123',
+    firstName: 'Jane',
+    lastName: 'Smith',
+    dob: '1985-05-15',
+    gender: 'F'
+  },
+  billingProvider: {
+    npi: '1234567890',
+    organizationName: 'City Medical Center'
+  },
+  serviceLines: [{
+    lineNumber: 1,
+    procedureCode: '99213',
+    serviceDate: '2024-03-15',
+    units: 1,
+    chargeAmount: 250.00
+  }],
+  diagnosisCodes: [{
+    sequence: 1,
+    code: 'E11.9',
+    type: 'principal'
+  }]
+};
+
+const fhirClaim = mapX12837ToFhirClaim(x12Claim);
+// Result: FHIR R4 Claim resource
+```
+
+#### X12 835 → FHIR ExplanationOfBenefit
+
+```typescript
+import { mapX12835ToFhirEob } from './src/fhir/mapping/x12-to-fhir';
+
+const x12Remittance: X12_835_Remittance = {
+  transactionId: 'RMT98765',
+  payer: {
+    payerId: 'PAYER001',
+    payerName: 'Health Insurance Co'
+  },
+  payee: {
+    npi: '1234567890',
+    organizationName: 'City Medical Center'
+  },
+  payment: {
+    paymentMethodCode: 'ACH',
+    paymentAmount: 200.00,
+    paymentDate: '2024-04-01'
+  },
+  claims: [{
+    claimId: 'CLM12345',
+    patient: {
+      memberId: 'MEM123',
+      firstName: 'Jane',
+      lastName: 'Smith'
+    },
+    claimAmounts: {
+      billedAmount: 250.00,
+      allowedAmount: 225.00,
+      paidAmount: 200.00,
+      deductible: 25.00
+    },
+    serviceLines: [/* ... */]
+  }]
+};
+
+const fhirEob = mapX12835ToFhirEob(x12Remittance);
+// Result: FHIR R4 ExplanationOfBenefit resource
+```
+
+### Security & Compliance
+
+#### PHI Redaction
+
+The Patient Access API automatically redacts sensitive PHI before returning FHIR resources:
+
+```typescript
+import { redactPHI } from './src/security/hipaaLogger';
+
+const patient = await api.getPatient('PAT123', token);
+// SSN, detailed address info automatically redacted
+```
+
+#### HIPAA Audit Logging
+
+All API access is logged for HIPAA compliance:
+
+```typescript
+const logs = api.getAuditLogs();
+logs.forEach(log => {
+  console.log(`${log.timestamp} - ${log.eventType} - ${log.userId} - ${log.result}`);
+});
+
+// Example output:
+// 2024-03-15T10:00:00Z - auth_success - PAT123 - success
+// 2024-03-15T10:00:01Z - consent_check - PAT123 - success
+// 2024-03-15T10:00:02Z - read - PAT123 - success
+```
+
+#### Da Vinci PDex Compliance
+
+Validate resources against Da Vinci PDex profiles:
+
+```typescript
+const patient = await api.getPatient('PAT123', token);
+const isCompliant = await api.validatePDexCompliance(patient);
+console.log(`PDex compliant: ${isCompliant}`);
+```
+
+### Testing
+
+Run Patient Access API tests:
+
+```bash
+# Run all Patient Access API tests
+npm test -- src/fhir/__tests__/patient-access-api.test.ts
+
+# Run all FHIR tests (includes Patient Access API)
+npm run test:fhir
+```
+
+**Test Coverage:**
+- OAuth 2.0 authentication and token validation
+- Patient consent checking
+- FHIR endpoint operations (Patient, Claim, Encounter, EOB, CoverageEligibilityResponse)
+- X12 to FHIR mapping accuracy
+- PHI redaction verification
+- HIPAA audit logging
+- Da Vinci PDex compliance validation
+- End-to-end patient access workflow
+
+### Integration with Azure Services
+
+The Patient Access API integrates with Azure services for production deployment:
+
+```typescript
+// Azure AD for OAuth 2.0
+// - Patient authentication
+// - Token validation and refresh
+// - Scope management
+
+// Azure Key Vault for PHI encryption
+const encryptionKey = await keyVaultClient.getSecret('patient-access-encryption-key');
+const api = new PatientAccessApi(encryptionKey.value);
+
+// Azure Cosmos DB for backend data
+// - Patient demographics
+// - Encounter records
+// - Eligibility responses
+
+// Azure Storage for X12 files
+// - X12 837 claims archives
+// - X12 835 remittance archives
+```
+
+---
+
+## Provider Access API (CMS-0057-F)
+
+The Provider Access API enables healthcare providers to securely access patient data with proper authentication, authorization, and consent management. This implementation aligns with CMS-0057-F requirements effective in 2027.
+
+### Key Features
+
+✅ **SMART on FHIR Authentication** - OpenID Connect/OAuth2 for EHR/provider authentication  
+✅ **Patient Consent Management** - Validate patient authorization before data access  
+✅ **FHIR R4 Endpoints** - Search and read operations for clinical and administrative data  
+✅ **HIPAA Safeguards** - Encryption, audit logging, and PHI redaction  
+✅ **US Core v3.1.1 Compliance** - US Core Patient profile and USCDI data elements  
+✅ **Da Vinci PDex Alignment** - Compatible with Payer Data Exchange Implementation Guides  
+✅ **Backend Integration** - claims backend to FHIR data mapping
+
+### Supported Resources
+
+The Provider Access API supports search and read operations for the following FHIR resources:
+
+| Resource Type | Purpose | Standards |
+|---------------|---------|-----------|
+| **Patient** | Patient demographics and identifiers | US Core v3.1.1 |
+| **Claim** | Claims data (837 Professional, Institutional, Dental) | FHIR R4 |
+| **Encounter** | Clinical encounters and visits | FHIR R4 |
+| **ExplanationOfBenefit** | Adjudicated claim information | FHIR R4 |
+| **Condition** | Clinical conditions (diagnoses) | US Core, USCDI |
+| **Observation** | Laboratory results and vital signs | US Core, USCDI |
+
+### Authentication Flow
+
+The Provider Access API uses SMART on FHIR for secure authentication:
+
+```text
+1. Provider EHR initiates OAuth2 authorization request
+   ↓
+2. Provider authenticates with Azure AD / Identity Provider
+   ↓
+3. Patient consent is validated (active consent required)
+   ↓
+4. Access token issued with appropriate scopes
+   ↓
+5. Provider makes FHIR API requests with Bearer token
+   ↓
+6. API validates token, checks consent, returns FHIR resources
+   ↓
+7. All access logged to audit trail (HIPAA compliance)
+```
+
+### Consent Model
+
+Patient consent is required before providers can access data via the Provider Access API:
+
+- **Active Consent**: Patient must have active, unexpired consent on file
+- **Scope-Based Access**: Consent defines which resource types are accessible
+- **Purpose of Use**: Consent records purpose (Treatment, Payment, Operations)
+- **Expiration**: Consents have configurable expiration dates
+- **Revocation**: Patients can revoke consent at any time
+
+**Consent Statuses:**
+
+- `active` - Provider has access to patient data
+- `inactive` - Consent not yet effective
+- `revoked` - Patient has revoked consent
+- `pending` - Awaiting patient approval
+
+### API Endpoints
+
+#### Search Resources
+
+```text
+GET /[ResourceType]?patient=[patientId]&[other-params]
+Authorization: Bearer {access_token}
+```
+
+**Supported Parameters:**
+
+- `patient` - Patient identifier (required)
+- `date` - Filter by service/effective date
+- `status` - Filter by resource status
+- `category` - Filter by category (Condition, Observation)
+- `_count` - Results per page (pagination)
+- `_page` - Page number (pagination)
+
+**Example Request:**
+
+```http
+GET /Condition?patient=PAT123&clinical-status=active
+Authorization: Bearer provider:NPI12345:abc123token
+```
+
+**Example Response:**
+
+```json
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 2,
+  "entry": [
+    {
+      "fullUrl": "Condition/COND001",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "COND001",
+        "clinicalStatus": {
+          "coding": [{
+            "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+            "code": "active"
+          }]
+        },
+        "code": {
+          "coding": [{
+            "system": "http://snomed.info/sct",
+            "code": "44054006",
+            "display": "Type 2 diabetes mellitus"
+          }]
+        },
+        "subject": {
+          "reference": "Patient/PAT123"
+        },
+        "onsetDateTime": "2020-06-15"
+      }
+    }
+  ]
+}
+```
+
+#### Read Specific Resource
+
+```text
+GET /[ResourceType]/[id]
+Authorization: Bearer {access_token}
+```
+
+**Example Request:**
+
+```http
+GET /Patient/PAT123
+Authorization: Bearer provider:NPI12345:abc123token
+```
+
+**Example Response:**
+
+```json
+{
+  "resourceType": "Patient",
+  "id": "PAT123",
+  "meta": {
+    "profile": ["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"]
+  },
+  "identifier": [
+    {
+      "use": "official",
+      "type": {
+        "coding": [{
+          "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+          "code": "MB",
+          "display": "Member Number"
+        }]
+      },
+      "value": "PAT123"
+    }
+  ],
+  "active": true,
+  "name": [
+    {
+      "use": "official",
+      "family": "Doe",
+      "given": ["John"]
+    }
+  ],
+  "gender": "male",
+  "birthDate": "1980-01-01"
+}
+```
+
+### Payer-to-Payer Error Handling
+
+The Provider Access API returns FHIR OperationOutcome resources for errors:
+
+#### Authentication Error (401)
+
+```json
+{
+  "resourceType": "OperationOutcome",
+  "issue": [{
+    "severity": "error",
+    "code": "login",
+    "diagnostics": "Invalid or missing SMART on FHIR token"
+  }]
+}
+```
+
+#### Consent Denied (403)
+
+```json
+{
+  "resourceType": "OperationOutcome",
+  "issue": [{
+    "severity": "error",
+    "code": "forbidden",
+    "diagnostics": "Provider NPI12345 does not have consent to access patient PAT123 data"
+  }]
+}
+```
+
+#### Resource Not Found (404)
+
+```json
+{
+  "resourceType": "OperationOutcome",
+  "issue": [{
+    "severity": "error",
+    "code": "not-found",
+    "diagnostics": "Patient/PAT999 not found"
+  }]
+}
+```
+
+### Backend Data Mapping (claims backend → FHIR)
+
+The Provider Access API includes mappers to transform backend payer system data (e.g., claims backend) to FHIR resources:
+
+**Patient Mapping:**
+
+```typescript
+// claims backend Patient data
+const backendPatient = {
+  memberId: 'MEM123',
+  firstName: 'John',
+  lastName: 'Doe',
+  dob: '19850615',
+  gender: 'M',
+  address: { /* ... */ },
+  phone: '555-1234',
+  email: 'john@example.com'
+};
+
+// Transform to FHIR Patient (US Core)
+const fhirPatient = api.mapBackendPatientToFhir(backendPatient);
+```
+
+**Claim Mapping:**
+
+```typescript
+// claims backend Claim data
+const backendClaim = {
+  claimId: 'CLM123',
+  memberId: 'MEM123',
+  providerId: 'NPI98765',
+  claimType: 'Professional',
+  serviceDate: '2024-01-15',
+  diagnosisCodes: ['E11.9', 'I10'],
+  procedureCodes: ['99213', '80053'],
+  totalCharged: 350.00,
+  totalPaid: 280.00,
+  status: 'active'
+};
+
+// Transform to FHIR Claim
+const fhirClaim = api.mapBackendClaimToFhir(backendClaim);
+```
+
+**Encounter Mapping:**
+
+```typescript
+// claims backend Encounter data
+const backendEncounter = {
+  encounterId: 'ENC123',
+  memberId: 'MEM123',
+  providerId: 'NPI98765',
+  encounterType: 'AMB',
+  encounterDate: '2024-01-15T10:00:00Z',
+  diagnosisCodes: ['E11.9'],
+  status: 'finished'
+};
+
+// Transform to FHIR Encounter
+const fhirEncounter = api.mapBackendEncounterToFhir(backendEncounter);
+```
+
+### HIPAA Safeguards
+
+The Provider Access API implements comprehensive HIPAA safeguards:
+
+#### 1. Encryption (AES-256-GCM)
+
+```typescript
+// Encrypt PHI data
+const encrypted = api.encryptPhi('John Doe, SSN: 123-45-6789');
+
+// Decrypt when needed
+const decrypted = api.decryptPhi(encrypted);
+```
+
+#### 2. Audit Logging
+
+All access is logged with:
+
+- Timestamp
+- Event type (access, search, read, consent_check, auth_failure)
+- User/Provider identifier
+- Patient identifier
+- Resource type and ID
+- Result (success/failure)
+- IP address
+- Details
+
+**Audit Log Example:**
+
+```text
+[AUDIT] 2024-01-15T10:30:00Z - search - success - User: NPI12345 - Search: Patient with params {"patient":"PAT123"}
+[AUDIT] 2024-01-15T10:30:01Z - consent_check - success - User: NPI12345 - Patient: PAT123
+[AUDIT] 2024-01-15T10:30:02Z - read - success - User: NPI12345 - Read: Patient/PAT123
+```
+
+#### 3. PHI Redaction
+
+```typescript
+// Original patient resource
+const patient = { /* full PHI */ };
+
+// Redact for logging/monitoring
+const redacted = api.redactPhi(patient);
+// Result: names → ***, DOB → ****-**-**, addresses → ***
+```
+
+### Azure API Management Integration
+
+Deploy the Provider Access API behind Azure API Management for:
+
+- **Rate Limiting**: Prevent abuse and ensure fair usage
+- **IP Whitelisting**: Restrict access to known provider networks
+- **Additional Authentication**: Layer OAuth2 scopes and policies
+- **Monitoring**: Track API usage, performance, and errors
+- **Caching**: Improve performance for frequently accessed data
+- **Transformation**: Additional request/response processing if needed
+
+**Example API Management Policy:**
+
+```xml
+<policies>
+  <inbound>
+    <rate-limit calls="100" renewal-period="60" />
+    <validate-jwt header-name="Authorization" />
+    <set-header name="X-Forwarded-For" exists-action="override">
+      <value>@(context.Request.IpAddress)</value>
+    </set-header>
+  </inbound>
+  <backend>
+    <forward-request />
+  </backend>
+  <outbound>
+    <set-header name="X-Content-Type-Options" exists-action="override">
+      <value>nosniff</value>
+    </set-header>
+  </outbound>
+</policies>
+```
+
+### Usage Example
+
+```typescript
+import { createProviderAccessApi } from './src/fhir/provider-access-api';
+
+// Initialize API with encryption key (from Azure Key Vault in production)
+const api = createProviderAccessApi(process.env.ENCRYPTION_KEY);
+
+// Provider authentication token from SMART on FHIR flow
+const token = 'provider:NPI12345:valid-access-token';
+
+// Search for patient conditions
+const conditionsBundle = await api.searchResources(
+  'Condition',
+  { 
+    resourceType: 'Condition', 
+    patient: 'PAT123',
+    'clinical-status': 'active'
+  },
+  token
+);
+
+// Read specific patient
+const patient = await api.readResource('Patient', 'PAT123', token);
+
+// Get audit logs for compliance reporting
+const auditLogs = api.getAuditLogs();
+```
+
+### Provider Access Testing
+
+The Provider Access API includes 44 comprehensive unit tests covering:
+
+- ✅ SMART on FHIR authentication (valid/invalid tokens)
+- ✅ Patient consent validation (active, expired, revoked)
+- ✅ Search operations (all 6 resource types)
+- ✅ Read operations with consent checks
+- ✅ claims backend to FHIR mapping (Patient, Claim, Encounter)
+- ✅ Gender and date format handling
+- ✅ Encryption/decryption (AES-256-GCM)
+- ✅ PHI redaction
+- ✅ Audit logging
+- ✅ Error handling (401, 403, 404)
+- ✅ US Core v3.1.1 compliance
+- ✅ Integration scenarios
+
+**Run Provider Access API tests:**
+
+```bash
+npm run test:fhir
+```
+
+**Expected Output:**
+
+```text
+PASS src/fhir/__tests__/provider-access-api.test.ts
+  ProviderAccessApi
+    ✓ should validate SMART on FHIR tokens
+    ✓ should check patient consent
+    ✓ should search FHIR resources
+    ✓ should map claims backend data to FHIR
+    ✓ should encrypt/decrypt PHI
+    ✓ should log audit trails
+    ... (44 tests total)
+
+Tests: 44 passed, 44 total
+```
+
+---
+
+## Prior Authorization Architecture
+
+### High-Level Flow
+
+```text
+┌─────────────┐      X12 270        ┌──────────────────┐
+│   Provider  │ ──────────────────> │  Cloud Health    │
+│   System    │                     │    Office        │
+└─────────────┘                     │   (Logic Apps)   │
+                                    └──────────────────┘
+                                            │
+                                            │ Process EDI
+                                            ▼
+                                    ┌──────────────────┐
+                                    │  FHIR Mapper     │
+                                    │  (TypeScript)    │
+                                    └──────────────────┘
+                                            │
+                                            │ Generate FHIR
+                                            ▼
+                    ┌──────────────────────────────────────┐
+                    │  FHIR R4 Resources                   │
+                    │  - Patient                           │
+                    │  - CoverageEligibilityRequest        │
+                    └──────────────────────────────────────┘
+                                            │
+                                            │ Store/Query
+                                            ▼
+                    ┌──────────────────────────────────────┐
+                    │  Payer Backend System                │
+                    │  (claims backend, Claims System, etc.)         │
+                    └──────────────────────────────────────┘
+```
+
+### Components
+
+1. **X12 Type Definitions** (`src/fhir/x12Types.ts`)
+   - Comprehensive X12 270 structure
+   - TypeScript interfaces for type safety
+   - Supports all HIPAA-required fields
+
+2. **FHIR Mapper** (`src/fhir/fhirEligibilityMapper.ts`)
+   - Core mapping logic
+   - X12 → FHIR transformation
+   - Profile-compliant resource generation
+
+3. **Unit Tests** (`src/fhir/__tests__/fhirEligibilityMapper.test.ts`)
+   - 19+ comprehensive test cases
+   - Edge case coverage
+   - Compliance validation
+
+---
+
+## X12 270 to FHIR R4 Mapping
+
+### Patient Resource Mapping
+
+| X12 270 Field | FHIR R4 Patient Field | Notes |
+|---------------|----------------------|-------|
+| `subscriber.memberId` | `identifier[0].value` | Member number identifier |
+| `subscriber.firstName` | `name[0].given[0]` | First name |
+| `subscriber.lastName` | `name[0].family` | Family name |
+| `subscriber.middleName` | `name[0].given[1]` | Middle name (optional) |
+| `subscriber.dob` | `birthDate` | Date of birth (YYYY-MM-DD) |
+| `subscriber.gender` (M/F/U) | `gender` (male/female/unknown) | Gender code mapping |
+| `subscriber.ssn` | `identifier[1].value` | Social Security Number |
+| `subscriber.address` | `address[0]` | Full address structure |
+| `subscriber.phone` | `telecom[0]` | Phone contact |
+| `subscriber.email` | `telecom[1]` | Email contact |
+
+### CoverageEligibilityRequest Mapping
+
+| X12 270 Field | FHIR R4 CoverageEligibilityRequest | Notes |
+|---------------|-----------------------------------|-------|
+| `inquiryId` | `id` | Unique inquiry identifier |
+| `transactionDate` | `created` | Request timestamp |
+| `subscriber.memberId` | `patient.reference` | Patient reference |
+| `insurerId` | `insurer.identifier.value` | Payer identifier |
+| `informationReceiver.npi` | `provider.identifier.value` | Requesting provider NPI |
+| `serviceTypeCodes[]` | `item[].category.coding` | Service categories |
+| `serviceDateRange` | `servicedPeriod` | Date range for inquiry |
+
+### Gender Code Mapping
+
+```typescript
+X12 Code → FHIR Code
+   M     → male
+   F     → female
+   U     → unknown
+ (null)  → unknown
+```
+
+### Date Format Conversion
+
+```typescript
+X12 Format:  CCYYMMDD (e.g., "19850615")
+FHIR Format: YYYY-MM-DD (e.g., "1985-06-15")
+
+X12 DateTime: CCYYMMDD-HHMM (e.g., "20240115-1430")
+FHIR DateTime: ISO 8601 (e.g., "2024-01-15T14:30:00Z")
+```
+
+### Service Type Code Mapping
+
+Common X12 service type codes mapped to FHIR benefit categories:
+
+| X12 Code | Description | FHIR Category |
+|----------|-------------|---------------|
+| 1 | Medical Care | Medical Care |
+| 2 | Surgical | Surgical |
+| 30 | Health Benefit Plan Coverage | Health Benefit Plan Coverage |
+| 33 | Chiropractic | Chiropractic |
+| 35 | Dental Care | Dental Care |
+| 47 | Hospital | Hospital |
+| 48 | Hospital - Inpatient | Hospital - Inpatient |
+| 49 | Hospital - Outpatient | Hospital - Outpatient |
+| 86 | Emergency Services | Emergency Services |
+| 88 | Pharmacy | Pharmacy |
+| 98 | Professional (Physician) Visit - Office | Professional (Physician) Visit - Office |
+
+Full list of 100+ service type codes implemented in mapper.
+
+---
+
+## Payer-to-Payer Data Exchange (CMS-0057-F)
+
+### Payer-to-Payer Overview
+
+The CMS-0057-F Final Rule mandates that payers implement APIs to exchange patient health information when members switch between health plans. Cloud Health Office provides a comprehensive Payer-to-Payer (P2P) data exchange solution using FHIR R4 Bulk Data Access.
+
+**Key Features:**
+
+- ✅ FHIR R4 Bulk Data Export/Import (NDJSON format)
+- ✅ Member consent validation (opt-in flows)
+- ✅ Azure Service Bus integration for async workflows
+- ✅ Azure Data Lake Storage for bulk file management
+- ✅ Data reconciliation with duplicate prevention
+- ✅ US Core and Da Vinci PDex compliance
+- ✅ Synthetic data generator for testing
+
+### Supported Resource Types
+
+The P2P API supports bulk exchange of the following FHIR R4 resources:
+
+| Resource Type | Purpose | CMS Requirement |
+|---------------|---------|-----------------|
+| **Patient** | Member demographics | Required |
+| **Claim** | Claims history (5 years) | Required |
+| **Encounter** | Healthcare encounters | Required |
+| **ExplanationOfBenefit** | Adjudicated claims | Required |
+| **ServiceRequest** | Prior authorizations | Required (278 ↔ FHIR) |
+
+### Member Consent Model
+
+All data exchanges require explicit member consent per CMS-0057-F requirements:
+
+```typescript
+import { PayerToPayerAPI, MemberConsent } from './src/fhir/payer-to-payer-api';
+
+const api = new PayerToPayerAPI({
+  serviceBusConnectionString: process.env.AZURE_SERVICE_BUS_CONNECTION,
+  storageConnectionString: process.env.AZURE_STORAGE_CONNECTION,
+  storageContainerName: 'p2p-bulk-data',
+  exportRequestTopic: 'export-requests',
+  importRequestTopic: 'import-requests',
+  fhirServerBaseUrl: 'https://fhir.mypayer.com',
+  payerOrganizationId: 'PAYER001'
+});
+
+// Register member consent
+const consent: MemberConsent = {
+  patientId: 'MEM123456',
+  targetPayerId: 'PAYER002',
+  consentDate: new Date('2024-01-15'),
+  status: 'active',
+  authorizedResourceTypes: [
+    'Patient',
+    'Claim',
+    'Encounter',
+    'ExplanationOfBenefit',
+    'ServiceRequest'
+  ]
+};
+
+await api.registerConsent(consent);
+```
+
+### Consent Validation Rules
+
+1. **Active Status**: Consent must have `status: 'active'`
+2. **Not Expired**: If `expirationDate` is set, must be in the future
+3. **Resource Authorization**: Requested resource types must be in `authorizedResourceTypes`
+4. **Target Payer Match**: Consent must be for the requesting payer organization
+
+### Bulk Export Workflow
+
+#### Step 1: Initiate Export
+
+```typescript
+import { BulkExportRequest } from './src/fhir/payer-to-payer-api';
+
+const exportRequest: BulkExportRequest = {
+  exportId: 'EXP-20240115-001',
+  patientIds: ['MEM123456', 'MEM789012'],
+  resourceTypes: ['Patient', 'Claim', 'ExplanationOfBenefit'],
+  since: new Date('2019-01-01'), // 5-year historical requirement
+  until: new Date('2024-01-15'),
+  requestingPayerId: 'PAYER002'
+};
+
+// Initiates async export via Service Bus
+const result = await api.initiateExport(exportRequest);
+console.log(`Export job queued: ${result.exportId}`);
+```
+
+#### Step 2: Async Processing
+
+The export is processed asynchronously by a worker:
+
+```typescript
+// Worker process (triggered by Service Bus message)
+const exportResult = await api.executeBulkExport(exportRequest);
+
+console.log('Export completed:');
+exportResult.ndjsonFiles.forEach(file => {
+  console.log(`- ${file.resourceType}: ${file.count} resources`);
+  console.log(`  URL: ${file.url}`);
+});
+```
+
+#### Step 3: Download NDJSON Files
+
+Export produces NDJSON files in Azure Data Lake:
+
+```text
+exports/EXP-20240115-001/Patient.ndjson
+exports/EXP-20240115-001/Claim.ndjson
+exports/EXP-20240115-001/ExplanationOfBenefit.ndjson
+```
+
+Each line in the NDJSON file is a valid FHIR R4 resource:
+
+```json
+{"resourceType":"Patient","id":"MEM123456","meta":{"profile":["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"]},...}
+{"resourceType":"Patient","id":"MEM789012","meta":{"profile":["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"]},...}
+```
+
+### Bulk Import Workflow
+
+#### Step 1: Initiate Import
+
+```typescript
+import { BulkImportRequest } from './src/fhir/payer-to-payer-api';
+
+const importRequest: BulkImportRequest = {
+  importId: 'IMP-20240115-001',
+  ndjsonBlobUrls: [
+    'exports/EXP-20240115-001/Patient.ndjson',
+    'exports/EXP-20240115-001/Claim.ndjson',
+    'exports/EXP-20240115-001/ExplanationOfBenefit.ndjson'
+  ],
+  sourcePayerId: 'PAYER001',
+  enableReconciliation: true // Prevent duplicates
+};
+
+const result = await api.initiateImport(importRequest);
+console.log(`Import job queued: ${result.importId}`);
+```
+
+#### Step 2: Async Processing with Reconciliation
+
+```typescript
+// Worker process (triggered by Service Bus message)
+const importResult = await api.executeBulkImport(importRequest);
+
+console.log('Import completed:');
+importResult.resourcesImported.forEach(res => {
+  console.log(`- ${res.resourceType}:`);
+  console.log(`  Imported: ${res.count}`);
+  console.log(`  Duplicates skipped: ${res.duplicatesSkipped}`);
+});
+```
+
+### Data Reconciliation Logic
+
+The import process includes duplicate detection using Da Vinci PDex member matching:
+
+**Patient Matching Criteria:**
+
+1. **Member ID match** (highest priority)
+2. **SSN match** (if available)
+3. **Composite match**: Last Name + First Name + DOB + Gender
+
+**Claim/EOB Matching Criteria:**
+
+1. Patient reference + Claim ID
+2. Patient reference + Service Date + Provider
+3. Patient reference + Service Date + Total Amount
+
+**Algorithm:**
+
+```typescript
+// Simplified reconciliation example
+async function checkForDuplicate(resource: Resource): Promise<boolean> {
+  if (resource.resourceType === 'Patient') {
+    const patient = resource as Patient;
+    
+    // Check Member ID
+    const memberId = patient.identifier?.find(
+      id => id.type?.coding?.[0]?.code === 'MB'
+    )?.value;
+    
+    const existingPatient = await searchPatientByMemberId(memberId);
+    if (existingPatient) return true;
+    
+    // Check SSN
+    const ssn = patient.identifier?.find(
+      id => id.type?.coding?.[0]?.code === 'SB'
+    )?.value;
+    
+    if (ssn) {
+      const existingBySSN = await searchPatientBySSN(ssn);
+      if (existingBySSN) return true;
+    }
+    
+    // Check composite: Name + DOB + Gender
+    const existingByDemographics = await searchPatientByDemographics(
+      patient.name?.[0]?.family,
+      patient.name?.[0]?.given?.[0],
+      patient.birthDate,
+      patient.gender
+    );
+    
+    return !!existingByDemographics;
+  }
+  
+  return false;
+}
+```
+
+### Synthetic Data Generation
+
+Generate test FHIR bulk data for development and testing:
+
+```bash
+# Generate 100 patients with 3 claims and 2 encounters each
+npm run build
+node dist/src/fhir/generate-synthetic-bulk-data.js \
+  --count 100 \
+  --claims 3 \
+  --encounters 2 \
+  --output ./test-data/bulk-export
+
+# Output:
+# ✅ Synthetic bulk data generation complete!
+# 📁 Output directory: ./test-data/bulk-export
+# 📊 Summary:
+#    - 100 Patients
+#    - 300 Claims
+#    - 200 Encounters
+#    - 300 ExplanationOfBenefits
+#    - 33 ServiceRequests (Prior Auths)
+```
+
+**Generated Files:**
+
+- `Patient.ndjson` - US Core compliant Patient resources
+- `Claim.ndjson` - Professional, institutional, and pharmacy claims
+- `Encounter.ndjson` - Ambulatory, emergency, and inpatient encounters
+- `ExplanationOfBenefit.ndjson` - Adjudicated claims with payment info
+- `ServiceRequest.ndjson` - Prior authorization requests
+
+
+### Azure Service Bus Integration
+
+The P2P API uses Azure Service Bus topics for async workflow orchestration:
+
+**Topics:**
+
+- `export-requests` - Queue export jobs
+- `import-requests` - Queue import jobs
+
+**Message Format:**
+
+```json
+{
+  "exportId": "EXP-20240115-001",
+  "patientIds": ["MEM123456", "MEM789012"],
+  "resourceTypes": ["Patient", "Claim"],
+  "since": "2019-01-01T00:00:00Z",
+  "until": "2024-01-15T23:59:59Z",
+  "requestingPayerId": "PAYER002"
+}
+```
+
+**Worker Implementation:**
+
+```typescript
+import { ServiceBusClient } from '@azure/service-bus';
+
+const sbClient = new ServiceBusClient(process.env.AZURE_SERVICE_BUS_CONNECTION!);
+const receiver = sbClient.createReceiver('export-requests');
+
+receiver.subscribe({
+  processMessage: async (message) => {
+    const request = message.body as BulkExportRequest;
+    await api.executeBulkExport(request);
+  },
+  processError: async (err) => {
+    console.error('Service Bus error:', err);
+  }
+});
+```
+
+### Azure Data Lake Storage
+
+NDJSON files are stored in Azure Data Lake with hierarchical structure:
+
+```text
+container: p2p-bulk-data/
+├── exports/
+│   ├── EXP-20240115-001/
+│   │   ├── Patient.ndjson
+│   │   ├── Claim.ndjson
+│   │   └── ExplanationOfBenefit.ndjson
+│   └── EXP-20240116-001/
+│       └── ...
+└── imports/
+    └── ...
+```
+
+**Storage Configuration:**
+
+```typescript
+import { BlobServiceClient } from '@azure/storage-blob';
+
+const blobServiceClient = BlobServiceClient.fromConnectionString(
+  process.env.AZURE_STORAGE_CONNECTION!
+);
+
+const containerClient = blobServiceClient.getContainerClient('p2p-bulk-data');
+
+// Upload NDJSON file
+const blobClient = containerClient.getBlockBlobClient(
+  'exports/EXP-20240115-001/Patient.ndjson'
+);
+
+await blobClient.upload(ndjsonContent, Buffer.byteLength(ndjsonContent), {
+  blobHTTPHeaders: { blobContentType: 'application/fhir+ndjson' }
+});
+```
+
+## Payer-to-Payer Testing
+
+**Run P2P Tests:**
+
+```bash
+# Run all payer-to-payer tests (27 tests)
+npm test -- --testPathPattern=payer-to-payer
+
+# Run with coverage
+npm test -- --testPathPattern=payer-to-payer --coverage
+```
+
+**Test Coverage:**
+
+- ✅ Consent management (7 tests)
+- ✅ Bulk export workflows (3 tests)
+- ✅ Bulk import workflows (2 tests)
+- ✅ Synthetic data generation (4 tests)
+- ✅ US Core validation (6 tests)
+- ✅ NDJSON serialization (3 tests)
+- ✅ Error handling (2 tests)
+
+### CMS-0057-F Compliance Checklist
+
+- ✅ **Bulk Data Export**: FHIR R4 Bulk Data spec compliant
+- ✅ **Member Consent**: Opt-in consent validation before export
+- ✅ **5-Year History**: Support for `since` parameter (5-year lookback)
+- ✅ **US Core Profiles**: Patient, Claim, EOB use US Core profiles
+- ✅ **Da Vinci PDex**: Member matching per PDex IG
+- ✅ **Async Processing**: Service Bus for long-running operations
+- ✅ **NDJSON Format**: Standard FHIR bulk data format
+- ✅ **Security**: Azure managed identity, encryption at rest/in-transit
+- ✅ **Audit Logging**: Service Bus and Storage logs for compliance
+
+### Best Practices
+
+1. **Consent Management**
+   - Store consents in durable storage (database, not just in-memory)
+   - Implement consent expiration checks
+   - Audit all consent grant/revoke actions
+
+2. **Performance**
+   - Use parallel processing for large exports
+   - Implement pagination for resource queries
+   - Compress NDJSON files before storage
+
+3. **Security**
+   - Use Azure Managed Identity (avoid connection strings in production)
+   - Enable Azure Private Link for storage and Service Bus
+   - Implement IP allow-lists for API access
+   - Encrypt NDJSON files at rest with customer-managed keys
+
+4. **Monitoring**
+   - Track export/import job completion rates
+   - Monitor Service Bus queue depths
+   - Alert on failed reconciliation attempts
+   - Log all consent validation failures
+
+### Limitations and Future Enhancements
+
+**Current Limitations:**
+
+- In-memory consent registry (not persistent)
+- Simplified duplicate detection (production needs FHIR server integration)
+- Mock FHIR server queries (needs real FHIR server client)
+
+**Planned Enhancements:**
+
+- Integration with Azure Health Data Services FHIR server
+- PostgreSQL-backed consent registry
+- Advanced member matching ML models
+- SMART on FHIR authorization support
+- Real-time export status API
+
+---
+
+## Usage Examples
+
+### Basic Usage: X12 270 to FHIR
+
+```typescript
+import { mapX12270ToFhirEligibility } from './src/fhir/fhirEligibilityMapper';
+import { X12_270 } from './src/fhir/x12Types';
+
+// Sample X12 270 eligibility inquiry
+const x12Input: X12_270 = {
+  inquiryId: 'INQ20240115001',
+  transactionDate: '20240115-0930',
+  informationSource: {
+    id: '030240928',  // Clearinghouse
+    name: 'Texas Health Plan',
+    taxId: '75-1234567'
+  },
+  informationReceiver: {
+    npi: '1234567890',
+    organizationName: 'Austin Medical Center'
+  },
+  subscriber: {
+    memberId: 'THP123456789',
+    firstName: 'John',
+    lastName: 'Doe',
+    middleName: 'Robert',
+    dob: '19850615',
+    gender: 'M',
+    address: {
+      street1: '123 Main Street',
+      city: 'Austin',
+      state: 'TX',
+      zip: '78701'
+    },
+    phone: '512-555-1234',
+    email: 'john.doe@example.com'
+  },
+  insurerId: 'TXHEALTH01',
+  serviceTypeCodes: ['30', '48', '98']
+};
+
+// Transform to FHIR R4
+const { patient, eligibility } = mapX12270ToFhirEligibility(x12Input);
+
+console.log('Patient Resource:', JSON.stringify(patient, null, 2));
+console.log('Eligibility Request:', JSON.stringify(eligibility, null, 2));
+```
+
+### Output: FHIR R4 Patient Resource
+
+```json
+{
+  "resourceType": "Patient",
+  "id": "THP123456789",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"
+    ]
+  },
+  "identifier": [
+    {
+      "use": "official",
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code": "MB",
+            "display": "Member Number"
+          }
+        ]
+      },
+      "system": "urn:oid:TXHEALTH01",
+      "value": "THP123456789"
+    }
+  ],
+  "active": true,
+  "name": [
+    {
+      "use": "official",
+      "family": "Doe",
+      "given": ["John", "Robert"]
+    }
+  ],
+  "telecom": [
+    {
+      "system": "phone",
+      "value": "512-555-1234",
+      "use": "home"
+    },
+    {
+      "system": "email",
+      "value": "john.doe@example.com",
+      "use": "home"
+    }
+  ],
+  "gender": "male",
+  "birthDate": "1985-06-15",
+  "address": [
+    {
+      "use": "home",
+      "type": "physical",
+      "line": ["123 Main Street"],
+      "city": "Austin",
+      "state": "TX",
+      "postalCode": "78701",
+      "country": "US"
+    }
+  ]
+}
+```
+
+### Output: FHIR R4 CoverageEligibilityRequest
+
+```json
+{
+  "resourceType": "CoverageEligibilityRequest",
+  "id": "INQ20240115001",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/StructureDefinition/CoverageEligibilityRequest"
+    ]
+  },
+  "status": "active",
+  "priority": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/processpriority",
+        "code": "normal",
+        "display": "Normal"
+      }
+    ]
+  },
+  "purpose": ["validation", "benefits"],
+  "patient": {
+    "reference": "Patient/THP123456789",
+    "identifier": {
+      "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+      "value": "THP123456789"
+    }
+  },
+  "created": "2024-01-15T09:30:00Z",
+  "provider": {
+    "identifier": {
+      "system": "http://hl7.org/fhir/sid/us-npi",
+      "value": "1234567890"
+    }
+  },
+  "insurer": {
+    "identifier": {
+      "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+      "value": "TXHEALTH01",
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code": "NIIP",
+            "display": "National Insurance Payor Identifier (Payor)"
+          }
+        ]
+      }
+    },
+    "display": "Texas Health Plan"
+  },
+  "item": [
+    {
+      "category": {
+        "coding": [
+          {
+            "system": "https://x12.org/codes/service-type-codes",
+            "code": "30",
+            "display": "Health Benefit Plan Coverage"
+          }
+        ]
+      }
+    },
+    {
+      "category": {
+        "coding": [
+          {
+            "system": "https://x12.org/codes/service-type-codes",
+            "code": "48",
+            "display": "Hospital - Inpatient"
+          }
+        ]
+      }
+    },
+    {
+      "category": {
+        "coding": [
+          {
+            "system": "https://x12.org/codes/service-type-codes",
+            "code": "98",
+            "display": "Professional (Physician) Visit - Office"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Native HTTP Integration
+
+The platform now uses standards-based HTTP clients (Node.js `fetch`, `axios`, or the `SecureFhirClient` helper included in this repo) instead of the deprecated `fhir.js` SDK. The examples below use global `fetch` available in Node.js 18+; adapt the same pattern for browsers or other runtimes.
+
+### Creating Resources with fetch
+
+```typescript
+import { mapX12270ToFhirEligibility } from './src/fhir/fhirEligibilityMapper';
+
+const fhirBaseUrl = 'https://your-fhir-server.com/fhir';
+const accessToken = await getAccessToken();
+
+function authHeaders() {
+  return {
+    'Content-Type': 'application/fhir+json',
+    Authorization: `Bearer ${accessToken}`
+  };
+}
+
+async function postResource(resourceType: string, resource: unknown) {
+  const response = await fetch(`${fhirBaseUrl}/${resourceType}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(resource)
+  });
+
+  if (!response.ok) {
+    const failure = await response.text();
+    throw new Error(`FHIR POST failed (${response.status}): ${failure}`);
+  }
+
+  return response.json();
+}
+
+const { patient, eligibility } = mapX12270ToFhirEligibility(x12Data);
+const createdPatient = await postResource('Patient', patient);
+const createdEligibility = await postResource('CoverageEligibilityRequest', eligibility);
+```
+
+### Searching for Patients
+
+```typescript
+async function searchPatients(by: Record<string, string>) {
+  const params = new URLSearchParams(by);
+  const response = await fetch(`${fhirBaseUrl}/Patient?${params.toString()}`, {
+    headers: authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(`FHIR search failed: ${response.status}`);
+  }
+
+  const bundle = await response.json();
+  return bundle.entry?.map((entry: { resource: unknown }) => entry.resource) ?? [];
+}
+
+const patientsByIdentifier = await searchPatients({ identifier: 'THP123456789' });
+const patientsByDemographics = await searchPatients({ family: 'Doe', given: 'John', birthdate: '1985-06-15' });
+```
+
+### Updating Resources
+
+```typescript
+async function updatePatient(patientId: string, updater: (resource: any) => any) {
+  const readResponse = await fetch(`${fhirBaseUrl}/Patient/${patientId}`, {
+    headers: authHeaders()
+  });
+
+  if (!readResponse.ok) {
+    throw new Error(`Unable to read patient ${patientId}: ${readResponse.status}`);
+  }
+
+  const patient = await readResponse.json();
+  const updated = updater(patient);
+
+  const updateResponse = await fetch(`${fhirBaseUrl}/Patient/${patientId}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(updated)
+  });
+
+  if (!updateResponse.ok) {
+    const failure = await updateResponse.text();
+    throw new Error(`FHIR update failed (${updateResponse.status}): ${failure}`);
+  }
+
+  return updateResponse.json();
+}
+
+await updatePatient('THP123456789', (patient) => {
+  const telecom = patient.telecom ?? [];
+  telecom.push({ system: 'phone', value: '512-555-9999', use: 'mobile' });
+  return { ...patient, telecom };
+});
+```
+
+### Handling CoverageEligibilityResponse
+
+```typescript
+async function getEligibilityResponse(requestId: string) {
+  const params = new URLSearchParams({ request: `CoverageEligibilityRequest/${requestId}` });
+  const response = await fetch(`${fhirBaseUrl}/CoverageEligibilityResponse?${params.toString()}`, {
+    headers: authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(`CoverageEligibilityResponse search failed: ${response.status}`);
+  }
+
+  const bundle = await response.json();
+  return bundle.entry?.[0]?.resource;
+}
+
+const eligibilityResponse = await getEligibilityResponse(createdEligibility.id);
+console.log('Eligibility status:', eligibilityResponse?.outcome);
+console.log('Insurance details:', eligibilityResponse?.insurance);
+```
+
+### Validation without fhir.js
+
+```typescript
+import Ajv from 'ajv';
+import { patientSchema, coverageEligibilityRequestSchema } from './schemas';
+
+const ajv = new Ajv();
+const validatePatient = ajv.compile(patientSchema);
+const validateEligibility = ajv.compile(coverageEligibilityRequestSchema);
+
+if (!validatePatient(patient)) {
+  throw new Error(`Invalid Patient: ${JSON.stringify(validatePatient.errors)}`);
+}
+
+if (!validateEligibility(eligibility)) {
+  throw new Error(`Invalid CoverageEligibilityRequest: ${JSON.stringify(validateEligibility.errors)}`);
+}
+```
+
+---
+
+## Eligibility API Endpoints
+
+### Recommended RESTful API Structure
+
+```text
+POST   /api/fhir/eligibility/inquiry
+  → Accept X12 270 EDI, return FHIR CoverageEligibilityRequest ID
+
+GET    /api/fhir/Patient/:id
+  → Retrieve Patient resource
+
+GET    /api/fhir/CoverageEligibilityRequest/:id
+  → Retrieve eligibility request
+
+GET    /api/fhir/CoverageEligibilityResponse/:id
+  → Retrieve eligibility response (after processing)
+
+POST   /api/fhir/Patient
+  → Create or update patient from X12 data
+```
+
+### Sample API Implementation
+
+```typescript
+import express from 'express';
+import { mapX12270ToFhirEligibility } from './src/fhir/fhirEligibilityMapper';
+
+const app = express();
+app.use(express.json());
+
+// POST /api/fhir/eligibility/inquiry
+app.post('/api/fhir/eligibility/inquiry', async (req, res) => {
+  try {
+    const x12Data: X12_270 = req.body;
+    
+    // Validate input
+    if (!x12Data.inquiryId || !x12Data.subscriber) {
+      return res.status(400).json({ error: 'Invalid X12 270 data' });
+    }
+    
+    // Transform to FHIR
+    const { patient, eligibility } = mapX12270ToFhirEligibility(x12Data);
+    
+    // Store in FHIR server or database
+    // await fhirClient.create({ resource: patient });
+    // await fhirClient.create({ resource: eligibility });
+    
+    res.status(201).json({
+      patientId: patient.id,
+      eligibilityRequestId: eligibility.id,
+      patient,
+      eligibility
+    });
+  } catch (error) {
+    console.error('Error processing eligibility inquiry:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/fhir/Patient/:id
+app.get('/api/fhir/Patient/:id', async (req, res) => {
+  try {
+    const patientId = req.params.id;
+    // const patient = await fhirClient.read({ type: 'Patient', id: patientId });
+    // res.json(patient);
+    res.status(501).json({ error: 'Not implemented' });
+  } catch (error) {
+    res.status(404).json({ error: 'Patient not found' });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('FHIR API server listening on port 3000');
+});
+```
+
+---
+
+## Payer-to-Payer API (CMS-0057-F)
+
+### Payer-to-Payer API Overview
+
+The Payer-to-Payer API enables secure FHIR R4-compliant data exchange between health plans during member plan transitions, in compliance with CMS-0057-F requirements (effective 2027).
+
+### Payer-to-Payer API Key Features
+
+- **Bulk Data Export/Import**: NDJSON format per FHIR Bulk Data Access IG
+- **Azure Integration**: Service Bus for async workflows, Data Lake for storage
+- **Member Matching**: Da Vinci PDex IG compliant weighted algorithm
+- **Consent Management**: Opt-in consent flows per CMS requirements
+- **Data Reconciliation**: Automatic deduplication during import
+- **US Core Validation**: Profile compliance checking
+- **5-Year History**: Support for historical data exchange
+
+### Payer-to-Payer Supported Resource Types
+
+1. **Patient** - Demographics and member information
+2. **Claim** - Professional, institutional, pharmacy claims
+3. **Encounter** - Ambulatory, emergency, inpatient visits
+4. **ExplanationOfBenefit** - Adjudicated claim details
+5. **ServiceRequest** - Prior authorization requests (278)
+
+### Payer-to-Payer Architecture
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│                  Source Payer System                       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │         Payer-to-Payer API                           │  │
+│  │  • exportBulkData()                                  │  │
+│  │  • manageMemberConsent()                             │  │
+│  │  • matchMember()                                     │  │
+│  └───────────────┬──────────────────────────────────────┘  │
+└──────────────────┼──────────────────────────────────────────┘
+                   │
+                   │ NDJSON files
+                   ▼
+        ┌──────────────────────┐
+        │  Azure Data Lake Gen2 │
+        │  (Blob Storage)       │
+        └──────────────────────┘
+                   │
+                   │ Service Bus notification
+                   ▼
+        ┌──────────────────────┐
+        │  Azure Service Bus    │
+        │  Topics:              │
+        │  • export-notif       │
+        │  • import-requests    │
+        └──────────────────────┘
+                   │
+                   ▼
+┌────────────────────────────────────────────────────────────┐
+│                  Target Payer System                       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │         Payer-to-Payer API                           │  │
+│  │  • importBulkData()                                  │  │
+│  │  • matchMember()                                     │  │
+│  └──────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Configuration
+
+```typescript
+import { PayerToPayerAPI, PayerToPayerConfig } from './src/fhir/payer-to-payer-api';
+
+const config: PayerToPayerConfig = {
+  storageConnectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+  serviceBusConnectionString: process.env.AZURE_SERVICE_BUS_CONNECTION_STRING,
+  bulkDataContainerName: 'payer-exchange',
+  exportNotificationTopic: 'export-notifications',
+  importRequestTopic: 'import-requests',
+  sourcePayer: 'PAYER-001',
+  targetPayer: 'PAYER-002'
+};
+
+const api = new PayerToPayerAPI(config);
+```
+
+### Bulk Data Export
+
+Export member data in NDJSON format to Azure Data Lake:
+
+```typescript
+import { BulkExportRequest } from './src/fhir/payer-to-payer-api';
+import { Patient, Claim, ExplanationOfBenefit } from 'fhir/r4';
+
+// Prepare export request
+const request: BulkExportRequest = {
+  patientId: 'patient-001', // Optional: single patient export
+  resourceTypes: ['Patient', 'Claim', 'ExplanationOfBenefit'],
+  startDate: '2019-01-01', // 5-year history
+  endDate: '2024-12-31',
+  includeHistorical: true
+};
+
+// Gather resources to export
+const resources = [
+  { resourceType: 'Patient', data: [patient1, patient2, ...] },
+  { resourceType: 'Claim', data: [claim1, claim2, ...] },
+  { resourceType: 'ExplanationOfBenefit', data: [eob1, eob2, ...] }
+];
+
+// Perform export
+const result = await api.exportBulkData(request, resources);
+
+console.log('Export ID:', result.exportId);
+console.log('Status:', result.status); // 'completed'
+console.log('Output URLs:', result.outputUrls);
+// [
+//   { resourceType: 'Patient', url: 'https://...Patient.ndjson', count: 100 },
+//   { resourceType: 'Claim', url: 'https://...Claim.ndjson', count: 300 },
+//   ...
+// ]
+```
+
+### Bulk Data Import
+
+Import member data from NDJSON files with deduplication and validation:
+
+```typescript
+import { BulkImportRequest } from './src/fhir/payer-to-payer-api';
+
+const request: BulkImportRequest = {
+  inputUrls: [
+    {
+      resourceType: 'Patient',
+      url: 'https://storage.blob.core.windows.net/payer-exchange/exports/exp-123/Patient.ndjson'
+    },
+    {
+      resourceType: 'Claim',
+      url: 'https://storage.blob.core.windows.net/payer-exchange/exports/exp-123/Claim.ndjson'
+    }
+  ],
+  deduplicate: true, // Remove duplicates by resource ID
+  validateUsCore: true // Validate against US Core profiles
+};
+
+const result = await api.importBulkData(request);
+
+console.log('Import ID:', result.importId);
+console.log('Status:', result.status); // 'completed' or 'partial'
+console.log('Imported:', result.imported);
+// [
+//   { resourceType: 'Patient', count: 98, duplicatesSkipped: 2 },
+//   { resourceType: 'Claim', count: 295, duplicatesSkipped: 5 }
+// ]
+
+if (result.errors) {
+  console.log('Validation errors:', result.errors);
+}
+```
+
+### Member Matching
+
+Match members between payers using demographic data per Da Vinci PDex IG:
+
+```typescript
+import { MemberMatchRequest, Patient } from './src/fhir/payer-to-payer-api';
+
+// Source payer's patient data
+const sourcePatient: Patient = {
+  resourceType: 'Patient',
+  id: 'source-patient-001',
+  identifier: [{
+    system: 'http://hl7.org/fhir/sid/us-ssn',
+    value: '123-45-6789'
+  }],
+  name: [{
+    family: 'Smith',
+    given: ['Jane']
+  }],
+  gender: 'female',
+  birthDate: '1985-06-15',
+  address: [{
+    city: 'Seattle',
+    state: 'WA',
+    postalCode: '98101'
+  }],
+  telecom: [{
+    system: 'phone',
+    value: '206-555-0100'
+  }]
+};
+
+// Target payer's candidate patients
+const candidatePatients: Patient[] = [
+  // ... patients from target payer system
+];
+
+const matchRequest: MemberMatchRequest = {
+  patient: sourcePatient,
+  coverageToMatch: {
+    memberId: 'MEM123456',
+    subscriberId: 'SUB789012'
+  }
+};
+
+const matchResult = await api.matchMember(matchRequest, candidatePatients);
+
+console.log('Matched:', matchResult.matched); // true/false
+console.log('Confidence:', matchResult.confidence); // 0.0 - 1.0
+console.log('Matched Patient ID:', matchResult.matchedPatientId);
+console.log('Match Details:', matchResult.matchDetails);
+// {
+//   matchedOn: ['name', 'birthDate', 'gender', 'identifier', 'address'],
+//   score: 1.0
+// }
+```
+
+**Matching Algorithm:**
+
+- **Name**: 25% weight (family + given name)
+- **Birth Date**: 25% weight
+- **Identifier**: 20% weight (SSN, member ID)
+- **Gender**: 15% weight
+- **Address**: 10% weight (postal code + city)
+- **Telecom**: 5% weight
+
+**Match Threshold:** 0.8 (80% confidence required for a positive match)
+
+### Consent Management
+
+Implement opt-in consent flows per CMS requirements:
+
+```typescript
+// Request consent from member
+const consentGiven = true; // Member opts in
+
+const consent = await api.manageMemberConsent('patient-001', consentGiven);
+
+console.log('Consent Status:', consent.status); // 'active' or 'inactive'
+console.log('Source Payer:', consent.sourcePayer);
+console.log('Target Payer:', consent.targetPayer);
+console.log('Consent Date:', consent.consentDate);
+console.log('FHIR Consent:', consent.fhirConsent);
+```
+
+**FHIR Consent Resource:**
+
+```json
+{
+  "resourceType": "Consent",
+  "status": "active",
+  "scope": {
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/consentscope",
+      "code": "patient-privacy"
+    }]
+  },
+  "category": [{
+    "coding": [{
+      "system": "http://loinc.org",
+      "code": "59284-0",
+      "display": "Consent Document"
+    }]
+  }],
+  "patient": {
+    "reference": "Patient/patient-001"
+  },
+  "policy": [{
+    "uri": "https://www.cms.gov/regulations-and-guidance/cms-0057-f"
+  }],
+  "provision": {
+    "type": "permit",
+    "actor": [{
+      "role": {
+        "coding": [{
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+          "code": "IRCP",
+          "display": "Information Recipient"
+        }]
+      },
+      "reference": {
+        "reference": "Organization/PAYER-002"
+      }
+    }],
+    "action": [{
+      "coding": [{
+        "system": "http://terminology.hl7.org/CodeSystem/consentaction",
+        "code": "disclose"
+      }]
+    }]
+  }
+}
+```
+
+### NDJSON Format
+
+FHIR resources are exported in NDJSON (Newline Delimited JSON) format:
+
+```text
+{"resourceType":"Patient","id":"patient-001","name":[{"family":"Smith","given":["Jane"]}],"gender":"female","birthDate":"1985-06-15"}
+{"resourceType":"Patient","id":"patient-002","name":[{"family":"Doe","given":["John"]}],"gender":"male","birthDate":"1990-03-21"}
+{"resourceType":"Patient","id":"patient-003","name":[{"family":"Johnson","given":["Robert"]}],"gender":"male","birthDate":"1975-11-08"}
+```
+
+Each line is a complete, valid JSON object representing a single FHIR resource.
+
+### Data Reconciliation
+
+The API automatically handles data reconciliation during import:
+
+**Deduplication:**
+
+```typescript
+// Import with deduplication enabled
+const result = await api.importBulkData({
+  inputUrls: [...],
+  deduplicate: true
+});
+
+// Result shows duplicates skipped
+console.log(result.imported[0].duplicatesSkipped); // 5
+```
+
+**US Core Validation:**
+
+```typescript
+// Import with US Core profile validation
+const result = await api.importBulkData({
+  inputUrls: [...],
+  validateUsCore: true
+});
+
+// Validation errors reported
+if (result.errors) {
+  result.errors.forEach(error => {
+    console.log(error.issue[0].diagnostics);
+  });
+}
+```
+
+### Generating Test Data
+
+Generate synthetic FHIR data for testing:
+
+```bash
+# Generate 50 patients with associated resources
+node dist/scripts/utils/generate-payer-exchange-data.js 50 ./test-data/payer-exchange
+
+# Output:
+# ✓ Generated 50 resources in Patient.ndjson
+# ✓ Generated 150 resources in Claim.ndjson
+# ✓ Generated 250 resources in Encounter.ndjson
+# ✓ Generated 150 resources in ExplanationOfBenefit.ndjson
+# ✓ Generated 100 resources in ServiceRequest.ndjson
+```
+
+### Error Handling
+
+The API provides comprehensive error handling:
+
+```typescript
+try {
+  const result = await api.exportBulkData(request, resources);
+  
+  if (result.status === 'error') {
+    console.error('Export failed:', result.error?.issue[0].diagnostics);
+  }
+} catch (error) {
+  console.error('Unexpected error:', error);
+}
+```
+
+### Performance Considerations
+
+**Export Performance:**
+
+- Batch size: 1,000 resources per NDJSON file recommended
+- Parallel uploads to Data Lake for large datasets
+- Service Bus notifications for async processing
+
+**Import Performance:**
+
+- Streaming NDJSON parsing for memory efficiency
+- Parallel resource processing for large datasets
+- Deduplication uses Set for O(1) lookup
+
+**Storage Costs:**
+
+- Data Lake Gen2: ~$0.018/GB/month (Cool tier)
+- Service Bus Standard: $0.05/million operations
+- Minimal cost for typical payer exchange volumes
+
+### Security Best Practices
+
+1. **Use Managed Identity** for Azure service authentication
+2. **Enable Private Endpoints** for Data Lake and Service Bus
+3. **Encrypt at Rest** using customer-managed keys
+4. **Enable Audit Logging** for all operations
+5. **Implement RBAC** for API access control
+6. **Validate Consent** before export operations
+7. **Redact PHI** in application logs
+
+### Compliance Checklist
+
+- ✅ CMS-0057-F payer-to-payer exchange requirements
+- ✅ FHIR R4.0.1 specification compliance
+- ✅ FHIR Bulk Data Access IG (NDJSON format)
+- ✅ HL7 Da Vinci PDex IG (member matching)
+- ✅ US Core Implementation Guide v3.1.1+
+- ✅ HIPAA Security Rule (encryption, audit, access control)
+- ✅ 5-year historical data support
+- ✅ Opt-in consent flows
+
+---
+
+## Testing
+
+### Running Tests
+
+```bash
+# Run all FHIR tests (34 tests including payer-to-payer)
+npm run test:fhir
+
+# Run with coverage
+npm run test:fhir -- --coverage
+
+# Watch mode for development
+npm run test:fhir -- --watch
+
+# Generate synthetic test data
+node dist/scripts/utils/generate-payer-exchange-data.js 50 ./test-data
+```
+
+### Test Coverage
+
+- **X12 270 to FHIR R4 Mapping (19 tests):**
+
+- Basic mapping (minimal required fields)
+- Gender code mapping (M, F, U, missing)
+- Date format handling
+- Comprehensive demographics
+- Service type codes
+- Dependent vs subscriber handling
+
+**Payer-to-Payer API (15 tests):**
+
+- **Bulk Export** (3 tests)
+  - Single resource type export
+  - Multiple resource types export
+  - Date range filtering
+- **Bulk Import** (3 tests)
+  - Basic NDJSON import
+  - Deduplication during import
+  - US Core profile validation
+- **Consent Management** (3 tests)
+  - Active consent creation
+  - Inactive consent (opt-out)
+  - CMS policy references
+- **Member Matching** (3 tests)
+  - Exact demographic match (confidence 1.0)
+  - Partial demographic match (confidence < 0.8)
+  - No match (low confidence)
+- **Error Handling** (2 tests)
+  - Export error handling
+  - Import error handling
+- **NDJSON Format** (1 test)
+  - Proper NDJSON serialization
+
+Current test suite includes:
+
+- ✅ Basic mapping (minimal required fields)
+- ✅ Gender code mapping (M, F, U, missing)
+- ✅ Comprehensive demographic mapping
+- ✅ Dependent vs. subscriber handling
+- ✅ Service type code mapping (100+ codes)
+- ✅ Date format conversion (CCYYMMDD → YYYY-MM-DD)
+- ✅ FHIR profile compliance (US Core Patient)
+- ✅ CMS interoperability requirements
+- ✅ Edge cases and error handling
+
+Coverage: 19 test cases, 100% pass rate
+
+### Sample Test
+
+```typescript
+it('maps complete subscriber information including address and contact', () => {
+  const input: X12_270 = {
+    inquiryId: 'INQ200',
+    informationSource: { id: '030240928' },
+    subscriber: {
+      memberId: 'MEM2001',
+      firstName: 'Robert',
+      lastName: 'Johnson',
+      dob: '19750810',
+      gender: 'M',
+      address: {
+        street1: '123 Main Street',
+        city: 'Austin',
+        state: 'TX',
+        zip: '78701'
+      },
+      phone: '512-555-1234',
+      email: 'robert.johnson@example.com'
+    },
+    insurerId: 'TXHEALTH01'
+  };
+
+  const { patient, eligibility } = mapX12270ToFhirEligibility(input);
+  
+  expect(patient.address![0].city).toBe('Austin');
+  expect(patient.telecom).toHaveLength(2);
+  expect(eligibility.patient.reference).toBe('Patient/MEM2001');
+});
+```
+
+---
+
+## Security and HIPAA Compliance
+
+### PHI Handling
+
+⚠️ **CRITICAL**: FHIR resources contain Protected Health Information (PHI)
+
+**Required Safeguards**:
+
+1. ✅ Encrypt data at rest (Azure Storage encryption)
+2. ✅ Encrypt data in transit (TLS 1.2+)
+3. ✅ Access controls (RBAC, managed identity)
+4. ✅ Audit logging (Application Insights)
+5. ✅ Minimum necessary principle
+6. ✅ Business Associate Agreements (BAAs)
+
+### SSN Handling
+
+```typescript
+// ⚠️ Handle SSN with extreme care per HIPAA
+if ('ssn' in member && member.ssn) {
+  identifiers.push({
+    use: 'official',
+    type: {
+      coding: [{
+        system: 'http://terminology.hl7.org/CodeSystem/v2-0203',
+        code: 'SS',
+        display: 'Social Security Number'
+      }]
+    },
+    system: 'http://hl7.org/fhir/sid/us-ssn',
+    value: member.ssn  // Only for matching, never log or display
+  });
+}
+```
+
+**Best Practices**:
+
+- ❌ Never log SSN in Application Insights
+- ❌ Never return SSN in API responses (unless required for specific use case)
+- ✅ Use for patient matching only
+- ✅ Redact from audit logs
+- ✅ Encrypt separately if stored
+
+### Authentication & Authorization
+
+```typescript
+// Example: Azure AD Bearer token validation
+app.use('/api/fhir', async (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    // Validate Azure AD token
+    const decoded = await validateAzureADToken(token);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+});
+```
+
+### Audit Logging
+
+```typescript
+import { ApplicationInsights } from 'applicationinsights';
+
+// Log FHIR access with PHI redaction
+function logFhirAccess(operation: string, resourceType: string, resourceId: string, userId: string) {
+  ApplicationInsights.defaultClient.trackEvent({
+    name: 'FHIRAccess',
+    properties: {
+      operation,
+      resourceType,
+      resourceId,  // Safe to log (no PHI)
+      userId,
+      timestamp: new Date().toISOString()
+    }
+  });
+}
+
+// Usage
+logFhirAccess('READ', 'Patient', patient.id!, req.user.id);
+```
+
+---
+
+## Roadmap
+
+### Q4 2024 - Completed
+
+- [x] X12 270 → FHIR R4 Patient mapping
+- [x] X12 270 → FHIR R4 CoverageEligibilityRequest
+- [x] CMS-0057-F Payer-to-Payer bulk data exchange
+- [x] Member consent management
+- [x] Azure Service Bus integration
+- [x] Azure Data Lake Storage integration
+- [x] Data reconciliation and duplicate prevention
+- [x] Synthetic FHIR bulk data generator
+
+### Q1 2025
+
+- [ ] X12 271 → FHIR R4 CoverageEligibilityResponse
+- [ ] FHIR CoverageEligibilityRequest → X12 270 (reverse)
+
+### Q2 2025
+
+- [ ] X12 837 Claims → FHIR R4 Claim resource
+- [ ] FHIR R4 Claim → X12 837 (reverse)
+- [ ] FHIR Coverage resource implementation
+- [ ] Da Vinci PDex profile compliance
+
+### Q3 2025
+
+- [ ] Prior authorization workflows (X12 278 ↔ FHIR)
+- [ ] Attachments (X12 275 ↔ FHIR DocumentReference)
+- [ ] SMART on FHIR integration
+- [ ] Enhanced member matching with ML models
+
+---
+
+## Support
+
+**Documentation**: [docs/](../docs/)  
+**Issues**: [GitHub Issues](https://github.com/aurelianware/cloudhealthoffice/issues)  
+**License**: BSL 1.1
+
+**Contributors**:
+
+- GitHub Copilot (AI-assisted development)
+- Aurelianware development team
+
+---
+
+## References
+
+### Standards
+
+- [HL7 FHIR R4 Specification](https://hl7.org/fhir/R4/)
+- [US Core Implementation Guide](http://hl7.org/fhir/us/core/)
+- [Da Vinci Payer Data Exchange](http://hl7.org/fhir/us/davinci-pdex/)
+- [X12 005010X279A1 Implementation Guide](https://x12.org/)
+
+### Regulations
+
+- [CMS-9115-F: Patient Access Final Rule](https://www.cms.gov/regulations-and-guidance/legislation/hipaa/interoperability-and-patient-access)
+- [CMS-0057-F: Prior Authorization Rule](https://www.cms.gov/newsroom/fact-sheets/cms-interoperability-and-prior-authorization-final-rule-cms-0057-f)
+- [HIPAA Security Rule](https://www.hhs.gov/hipaa/for-professionals/security/index.html)
+
+### Tools
+
+- [fhir.js](https://github.com/FHIR/fhir.js) - FHIR JavaScript library
+- [@types/fhir](https://www.npmjs.com/package/@types/fhir) - TypeScript definitions
+- [FHIR Validator](https://validator.fhir.org/) - Online resource validation
+
+---
+
+**Last Updated**: November 2024  
+**Version**: 1.0.0  
+**Status**: Production Ready
+
+---
+
+## Prior Authorization API - CMS-0057-F Implementation
+
+**NEW**: FHIR R4 Prior Authorization Support (Effective 2027)
+
+This section details the comprehensive prior authorization implementation supporting CMS-0057-F Final Rule requirements.
+
+---
+
+## Prior Authorization Overview
+
+The CMS-0057-F Prior Authorization Final Rule (effective January 2027) requires payers to implement FHIR-based prior authorization APIs. Cloud Health Office provides a complete implementation with:
+
+- **Da Vinci CRD** (Coverage Requirements Discovery) - Real-time coverage requirements
+- **Da Vinci DTR** (Documentation Templates & Rules) - Automated documentation gathering
+- **Da Vinci PAS** (Prior Authorization Support) - Standardized prior auth workflows
+- **X12 278 Integration** - Bidirectional mapping between X12 and FHIR
+- **72-Hour SLA Tracking** - Automated decision timeline compliance
+- **Attachment Support** - Binary resources for clinical documents/images
+- **Clearinghouse Integration** - Clearinghouse, Change Healthcare support
+
+### Key Benefits
+
+✅ **Regulatory Compliance**: Meets CMS-0057-F requirements  
+✅ **Reduced Administrative Burden**: Automated workflows save provider time  
+✅ **Real-Time Decisions**: Urgent requests processed in 24 hours  
+✅ **Standards-Based**: Da Vinci IGs ensure interoperability  
+✅ **Audit Ready**: Complete SLA tracking and decision logging  
+✅ **Azure Native**: Orchestrated via Logic Apps for scale
+
+---
+
+## Architecture
+
+### Prior Authorization Workflow
+
+```text
+┌─────────────┐      X12 278        ┌──────────────────┐
+│   Provider  │ ──────────────────> │  Clearinghouse   │
+│   System    │      Request        │   (Clearinghouse)     │
+└─────────────┘                     └──────────────────┘
+                                             │
+                                             │ SFTP/API
+                                             ▼
+                                     ┌──────────────────┐
+                                     │  Azure Logic Apps│
+                                     │  (ingest278)     │
+                                     └──────────────────┘
+                                             │
+                                             │ Parse & Map
+                                             ▼
+                                     ┌──────────────────┐
+                                     │  Prior Auth API  │
+                                     │  (TypeScript)    │
+                                     └──────────────────┘
+                                             │
+                                             ├─> FHIR Claim Resource
+                                             ├─> SLA Timeline Created
+                                             ├─> Store in Cosmos DB
+                                             └─> Trigger Review Process
+                                             
+                                             ▼
+                                     ┌──────────────────┐
+                                     │  Clinical Review │
+                                     │  System (claims backend)   │
+                                     └──────────────────┘
+                                             │
+                                             │ Decision
+                                             ▼
+                                     ┌──────────────────┐
+                                     │  Prior Auth API  │
+                                     │  (Response)      │
+                                     └──────────────────┘
+                                             │
+                                             ├─> FHIR ClaimResponse
+                                             ├─> SLA Check (compliant?)
+                                             └─> Map to X12 278 Response
+                                             
+                                             ▼
+                                     ┌──────────────────┐
+                                     │  Clearinghouse   │
+                                     │  (Outbound)      │
+                                     └──────────────────┘
+                                             │
+                                             ▼
+┌─────────────┐      X12 278        ┌──────────────────┐
+│   Provider  │ <────────────────── │    Notification  │
+│   System    │      Response       │                  │
+└─────────────┘                     └──────────────────┘
+```
+
+---
+
+## X12 278 to FHIR R4 Mapping
+
+### Request Mapping (X12 278 Type 11 → FHIR Claim)
+
+Cloud Health Office maps X12 278 prior authorization requests to FHIR R4 Claim resources following the Da Vinci PAS IG:
+
+#### Example: Inpatient Prior Authorization
+
+**X12 278 Input:**
+```typescript
+const x12Request: X12_278 = {
+  transactionType: '11',  // Request
+  transactionId: 'PA-2024-001',
+  certificationType: '1',  // Initial
+  serviceTypeCode: '48',   // Hospital Inpatient
+  levelOfService: 'U',     // Urgent
+  requester: {
+    npi: '1234567890',
+    name: 'Dr. Jane Smith',
+    organizationName: 'Memorial Hospital'
+  },
+  patient: {
+    memberId: 'MEM123456',
+    firstName: 'John',
+    lastName: 'Doe',
+    dob: '1980-05-15',
+    gender: 'M'
+  },
+  payer: {
+    id: 'HEALTHPLAN001',
+    name: 'State Health Plan'
+  },
+  admission: {
+    admissionDate: '2024-12-10',
+    dischargeDate: '2024-12-15'
+  },
+  serviceRequest: {
+    procedureCodes: [{
+      code: '470',
+      codeType: 'DRG',
+      description: 'Major joint replacement',
+      quantity: 1
+    }],
+    diagnosisCodes: [{
+      code: 'M17.11',
+      codeType: 'ICD10',
+      description: 'Unilateral primary osteoarthritis, right knee'
+    }],
+    serviceStartDate: '2024-12-10',
+    serviceEndDate: '2024-12-15'
+  }
+};
+```
+
+**FHIR Claim Output:**
+```typescript
+import { mapX12278ToFhirPriorAuth } from './prior-auth-api';
+
+const fhirClaim = mapX12278ToFhirPriorAuth(x12Request);
+
+// Result: FHIR R4 Claim resource
+{
+  "resourceType": "Claim",
+  "id": "PA-2024-001",
+  "meta": {
+    "profile": ["http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-claim"],
+    "lastUpdated": "2024-11-24T10:00:00Z"
+  },
+  "status": "active",
+  "use": "preauthorization",
+  "type": {
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+      "code": "professional"
+    }]
+  },
+  "patient": {
+    "reference": "Patient/MEM123456"
+  },
+  "provider": {
+    "reference": "Practitioner/1234567890",
+    "identifier": {
+      "system": "http://hl7.org/fhir/sid/us-npi",
+      "value": "1234567890"
+    },
+    "display": "Dr. Jane Smith"
+  },
+  "priority": {
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/processpriority",
+      "code": "urgent"
+    }]
+  },
+  "insurance": [{
+    "sequence": 1,
+    "focal": true,
+    "coverage": {
+      "reference": "Coverage/MEM123456"
+    }
+  }],
+  "item": [{
+    "sequence": 1,
+    "productOrService": {
+      "coding": [{
+        "system": "http://terminology.hl7.org/CodeSystem/ex-diagnosisrelatedgroup",
+        "code": "470",
+        "display": "Major joint replacement"
+      }]
+    },
+    "quantity": { "value": 1 },
+    "servicedPeriod": {
+      "start": "2024-12-10",
+      "end": "2024-12-15"
+    }
+  }],
+  "diagnosis": [{
+    "sequence": 1,
+    "diagnosisCodeableConcept": {
+      "coding": [{
+        "system": "http://hl7.org/fhir/sid/icd-10",
+        "code": "M17.11",
+        "display": "Unilateral primary osteoarthritis, right knee"
+      }]
+    }
+  }],
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-certificationType",
+      "valueCoding": {
+        "system": "https://codesystem.x12.org/005010/1322",
+        "code": "1",
+        "display": "Initial"
+      }
+    },
+    {
+      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-serviceType",
+      "valueCoding": {
+        "system": "https://codesystem.x12.org/005010/1365",
+        "code": "48",
+        "display": "Hospital - Inpatient"
+      }
+    },
+    {
+      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-admissionDates",
+      "valuePeriod": {
+        "start": "2024-12-10",
+        "end": "2024-12-15"
+      }
+    }
+  ]
+}
+```
+
+### Response Mapping (FHIR ClaimResponse → X12 278 Type 13)
+
+**FHIR ClaimResponse Input:**
+```typescript
+const fhirResponse: PriorAuthorizationResponse = {
+  resourceType: 'ClaimResponse',
+  id: 'RESP-PA-2024-001',
+  meta: {
+    profile: ['http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-claimresponse']
+  },
+  status: 'active',
+  type: { coding: [{ code: 'professional' }] },
+  use: 'preauthorization',
+  patient: { reference: 'Patient/MEM123456' },
+  created: '2024-11-24T14:30:00Z',
+  insurer: { reference: 'Organization/HEALTHPLAN001' },
+  outcome: 'complete',
+  disposition: 'Prior authorization approved for DRG 470',
+  preAuthRef: 'AUTH-2024-987654'
+};
+```
+
+**X12 278 Output:**
+```typescript
+import { mapFhirPriorAuthToX12278 } from './prior-auth-api';
+
+const x12Response = mapFhirPriorAuthToX12278(fhirResponse, originalRequest);
+
+// Result: X12 278 Response structure
+{
+  transactionType: '13',  // Response
+  transactionId: 'RESP-PA-2024-001',
+  reviewResponse: {
+    authorizationNumber: 'AUTH-2024-987654',
+    responseCode: '01',  // Approved
+    responseDescription: 'Prior authorization approved for DRG 470',
+    reviewOutcome: 'A1',  // Certified
+    certifiedQuantity: 1,
+    certifiedPeriod: {
+      startDate: '2024-12-10',
+      endDate: '2024-12-15'
+    }
+  }
+}
+```
+
+---
+
+## Decision Timeline & SLA Compliance
+
+### SLA Requirements (CMS-0057-F)
+
+- **Standard Requests**: 72 hours (3 business days)
+- **Urgent Requests**: 24 hours (1 business day)
+- **Expedited Requests**: 48 hours (2 business days)
+
+### Implementation
+
+```typescript
+import { createDecisionTimeline, checkSlaCompliance } from './prior-auth-api';
+
+// Create timeline when request arrives
+const timeline = createDecisionTimeline(x12Request, 'urgent');
+// timeline.slaHours = 24
+// timeline.dueAt = receivedAt + 24 hours
+
+// Check compliance when decision is made
+const decisionTime = new Date('2024-11-24T18:00:00Z');
+const result = checkSlaCompliance(timeline, decisionTime);
+// result.slaStatus = 'compliant' or 'breached'
+```
+
+### SLA Monitoring Dashboard
+
+Azure Application Insights tracks:
+- Average decision time by request type
+- SLA breach rate
+- Pended request percentage
+- Authorization approval rate
+
+---
+
+## Attachment Handling
+
+### Binary Resource for Clinical Documents
+
+```typescript
+import { createAttachmentBinary, createAttachmentDocumentReference } from './prior-auth-api';
+
+// Create Binary resource (PDF lab results)
+const labResults = createAttachmentBinary(
+  base64PdfData,
+  'application/pdf',
+  'Lab Results - Comprehensive Metabolic Panel'
+);
+
+// Link to prior authorization Claim
+const docRef = createAttachmentDocumentReference(
+  labResults,
+  { reference: 'Claim/PA-2024-001' },
+  'clinical-note'
+);
+
+// Store in Azure Blob Storage
+await blobClient.upload(labResults.data);
+await fhirClient.create({ resource: docRef });
+```
+
+### Supported Attachment Types
+
+| Type | MIME Type | Use Case |
+|------|-----------|----------|
+| Clinical Notes | `application/pdf` | Progress notes, H&P |
+| Lab Results | `application/pdf` | Blood work, diagnostics |
+| Imaging Reports | `application/pdf` | Radiology, pathology |
+| Medical Records | `application/pdf` | Medical history |
+| X-Rays | `image/jpeg`, `image/png` | Diagnostic images |
+| DICOM Studies | `application/dicom` | CT, MRI scans |
+
+---
+
+## Da Vinci CRD Integration
+
+### Coverage Requirements Discovery (CRD)
+
+CRD enables real-time coverage requirement discovery at the point of care using CDS Hooks:
+
+```typescript
+import { validateCRDHookRequest } from './prior-auth-api';
+
+// Validate CDS Hooks request
+const hookRequest = {
+  hook: 'order-sign',
+  hookInstance: 'hook-instance-123',
+  context: {
+    userId: 'Practitioner/123',
+    patientId: 'Patient/MEM123456',
+    draftOrders: {
+      resourceType: 'Bundle',
+      entry: [
+        {
+          resource: {
+            resourceType: 'ServiceRequest',
+            code: { coding: [{ code: '27447' }] }  // Total knee arthroplasty
+          }
+        }
+      ]
+    }
+  }
+};
+
+const validation = validateCRDHookRequest(hookRequest);
+if (validation.valid) {
+  // Process CRD request
+  // Return cards with coverage requirements
+}
+```
+
+### CRD Response Cards
+
+```json
+{
+  "cards": [
+    {
+      "summary": "Prior Authorization Required",
+      "indicator": "warning",
+      "detail": "CPT 27447 requires prior authorization for this patient's plan",
+      "source": {
+        "label": "State Health Plan"
+      },
+      "suggestions": [
+        {
+          "label": "Initiate Prior Authorization",
+          "actions": [{
+            "type": "create",
+            "resource": {
+              "resourceType": "Claim",
+              "use": "preauthorization"
+            }
+          }]
+        }
+      ],
+      "links": [
+        {
+          "label": "View Clinical Guidelines",
+          "url": "https://healthplan.com/guidelines/knee-replacement"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Clearinghouse Integration
+
+### Supported Clearinghouses
+
+- **Clearinghouse** (Primary)
+- **Change Healthcare**
+- **Waystar**
+- **Custom** (configurable)
+
+### Configuration
+
+```typescript
+import { packageForClearinghouse, processFromClearinghouse } from './prior-auth-api';
+
+const clearinghouseConfig = {
+  name: 'Clearinghouse',
+  tradingPartnerId: '030240928',
+  sftp: {
+    host: 'sftp.clearinghouse.example.com',
+    port: 22,
+    username: 'healthplan001',
+    inboundPath: '/inbound/278',
+    outboundPath: '/outbound/278'
+  }
+};
+
+// Package for transmission
+const submission = packageForClearinghouse(fhirRequest, x12Request, clearinghouseConfig);
+// submission.destination = '/outbound/278'
+
+// Process incoming response
+const { x12Response, fhirResponse } = processFromClearinghouse(
+  x12ResponsePayload,
+  clearinghouseConfig
+);
+```
+
+### Azure Logic Apps Orchestration
+
+The `ingest278` workflow handles:
+1. Poll Clearinghouse SFTP for incoming 278 requests
+2. Archive to Data Lake: `hipaa-attachments/raw/278/yyyy/MM/dd/`
+3. Decode X12 via Integration Account
+4. Map to FHIR using `mapX12278ToFhirPriorAuth()`
+5. Store in Cosmos DB (FHIR API)
+6. Publish to Service Bus topic: `edi-278`
+7. Trigger review workflow
+
+---
+
+## API Endpoints
+
+### REST API Structure
+
+```
+POST /fhir/Claim
+  - Create prior authorization request
+  - Body: FHIR Claim resource (use: preauthorization)
+  - Returns: Created Claim with id
+
+GET /fhir/Claim/{id}
+  - Retrieve prior authorization request
+  - Returns: FHIR Claim resource
+
+POST /fhir/ClaimResponse
+  - Submit prior authorization decision
+  - Body: FHIR ClaimResponse resource
+  - Returns: Created ClaimResponse with preAuthRef
+
+GET /fhir/ClaimResponse/{id}
+  - Retrieve prior authorization response
+  - Returns: FHIR ClaimResponse resource
+
+POST /api/replay278/triggers/HTTP_Replay_278_Request/invoke
+  - Replay 278 transaction from archive
+  - Body: { "blobUrl": "...", "fileName": "..." }
+  - Returns: { "success": true, "queuedAt": "..." }
+```
+
+### Azure Function Example
+
+```typescript
+import { AzureFunction, Context, HttpRequest } from '@azure/functions';
+import { mapX12278ToFhirPriorAuth, createDecisionTimeline } from '../prior-auth-api';
+
+const httpTrigger: AzureFunction = async function (
+  context: Context,
+  req: HttpRequest
+): Promise<void> {
+  const x12Request = req.body as X12_278;
+  
+  // Map to FHIR
+  const fhirClaim = mapX12278ToFhirPriorAuth(x12Request);
+  
+  // Create SLA timeline
+  const timeline = createDecisionTimeline(
+    x12Request,
+    x12Request.levelOfService === 'U' ? 'urgent' : 'standard'
+  );
+  
+  // Store in Cosmos DB
+  await cosmosClient
+    .database('fhir')
+    .container('Claim')
+    .items.create(fhirClaim);
+  
+  await cosmosClient
+    .database('sla')
+    .container('Timeline')
+    .items.create(timeline);
+  
+  context.res = {
+    status: 201,
+    body: {
+      claimId: fhirClaim.id,
+      slaDeadline: timeline.dueAt,
+      authorizationStatus: 'pending'
+    }
+  };
+};
+
+export default httpTrigger;
+```
+
+---
+
+## Testing
+
+### Running Prior Authorization Tests
+
+```bash
+# Run all prior auth tests
+npm test -- --testPathPattern=prior-auth-api
+
+# Run with coverage
+npm test -- --testPathPattern=prior-auth-api --coverage
+
+# Run specific test suite
+npm test -- --testPathPattern=prior-auth-api -t "X12 278 to FHIR Mapping"
+```
+
+### Test Coverage
+
+✅ **32 Comprehensive Tests**
+
+- **X12 to FHIR Mapping** (5 tests)
+  - Basic request mapping
+  - Da Vinci PAS extensions
+  - Inpatient admission details
+  - Multiple procedure codes
+  - Error handling
+
+- **FHIR to X12 Mapping** (3 tests)
+  - Approved responses
+  - Partial approvals
+  - Pended/additional info required
+
+- **SLA Compliance** (5 tests)
+  - Standard 72-hour timeline
+  - Urgent 24-hour timeline
+  - Expedited 48-hour timeline
+  - Compliant decisions
+  - Breached decisions
+
+- **Attachment Handling** (4 tests)
+  - PDF attachments
+  - Image attachments
+  - DocumentReference linking
+  - Missing descriptions
+
+- **Da Vinci CRD** (6 tests)
+  - Valid order-sign hooks
+  - Valid appointment-book hooks
+  - Missing required fields
+  - Context validation
+
+- **Clearinghouse Integration** (3 tests)
+  - Outbound packaging
+  - Inbound processing
+  - Error handling
+
+- **Edge Cases** (3 tests)
+  - Missing optional fields
+  - Empty arrays
+  - Invalid transaction types
+
+- **Da Vinci IG Accuracy** (3 tests)
+  - Profile URLs
+  - Terminology systems
+  - Extension URLs
+
+---
+
+## Compliance FAQ
+
+### CMS-0057-F Final Rule
+
+**Q: What is the CMS-0057-F Prior Authorization Final Rule?**
+
+A: CMS-0057-F requires certain payers to implement a standards-based FHIR API for prior authorization by January 2027. The rule aims to reduce administrative burden and improve patient care by streamlining the prior authorization process.
+
+**Q: Which payers are affected?**
+
+A: Medicare Advantage (MA), Medicaid, CHIP, and QHP issuers on the Federal Marketplaces.
+
+**Q: What are the key requirements?**
+
+A:
+1. FHIR-based prior authorization API
+2. Real-time decision support (CRD)
+3. 72-hour standard decision timeline
+4. 24-hour urgent decision timeline
+5. Automated documentation gathering (DTR)
+6. Standardized prior authorization workflow (PAS)
+
+### Da Vinci Implementation Guides
+
+**Q: What is the Da Vinci Project?**
+
+A: HL7 Da Vinci Project creates FHIR Implementation Guides for value-based care, including:
+- **CRD** (Coverage Requirements Discovery)
+- **DTR** (Documentation Templates & Rules)
+- **PAS** (Prior Authorization Support)
+
+**Q: Is Cloud Health Office compliant with Da Vinci IGs?**
+
+A: Yes, our implementation follows:
+- Da Vinci PAS IG v2.0.1
+- Da Vinci CRD IG v2.0
+- Da Vinci DTR IG v2.0
+
+### Implementation & Integration
+
+**Q: How do I integrate with existing systems?**
+
+A:
+1. **claims backend Integration**: Azure Logic Apps call claims backend APIs for review decisions
+2. **Clearinghouse**: SFTP/API integration with the clearinghouse or Change Healthcare
+3. **EHR Integration**: CDS Hooks endpoints for real-time CRD
+4. **FHIR Server**: Store resources in Azure API for FHIR or Cosmos DB
+
+**Q: What about X12 278 backward compatibility?**
+
+A: Full support maintained:
+- Inbound X12 278 mapped to FHIR
+- FHIR responses mapped back to X12 278
+- Existing workflows preserved
+- Gradual migration path
+
+**Q: How are attachments handled?**
+
+A: 
+- Binary resources for documents/images
+- DocumentReference for metadata
+- Azure Blob Storage for file storage
+- Secure URLs with SAS tokens
+- 7-year retention per HIPAA
+
+### Security & Compliance
+
+**Q: Is PHI protected?**
+
+A: Yes, comprehensive safeguards:
+- TLS 1.2+ encryption in transit
+- Encryption at rest (Azure Storage)
+- Managed identity authentication
+- Private endpoints (optional)
+- PHI masking in logs
+- RBAC access control
+- Audit logging
+
+**Q: How is SLA compliance tracked?**
+
+A:
+- Timeline created at request intake
+- Automated compliance checks
+- Application Insights dashboards
+- SLA breach alerts
+- Monthly compliance reports
+
+### Performance & Scalability
+
+**Q: What is the expected throughput?**
+
+A:
+- Standard tier: 100 requests/minute
+- Premium tier: 500 requests/minute
+- Auto-scaling with Azure Logic Apps
+- Cosmos DB RU/s adjustable
+
+**Q: How long does processing take?**
+
+A:
+- X12 to FHIR mapping: <100ms
+- FHIR validation: <50ms
+- Cosmos DB storage: <200ms
+- Total end-to-end: <500ms (excluding clinical review)
+
+---
+
+## Additional Resources
+
+### Code Examples
+
+- **Basic Usage**: `src/fhir/prior-auth-api.ts` (820+ lines)
+- **Test Suite**: `src/fhir/__tests__/prior-auth-api.test.ts` (32 tests)
+- **Integration**: See Logic Apps workflows in `logicapps/workflows/`
+
+### External Documentation
+
+- [Da Vinci PAS IG](http://hl7.org/fhir/us/davinci-pas/)
+- [Da Vinci CRD IG](http://hl7.org/fhir/us/davinci-crd/)
+- [Da Vinci DTR IG](http://hl7.org/fhir/us/davinci-dtr/)
+- [CMS-0057-F Final Rule](https://www.cms.gov/newsroom/fact-sheets/cms-interoperability-and-prior-authorization-final-rule-cms-0057-f)
+- [X12 278 Implementation Guide](https://x12.org/products/health-care-claim-payment-advice-835)
+
+---
+
+**Last Updated**: November 2024  
+**Version**: 2.0.0 (Prior Authorization API Added)  
+**Status**: Production Ready

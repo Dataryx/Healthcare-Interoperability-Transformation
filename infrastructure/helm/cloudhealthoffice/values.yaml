@@ -1,0 +1,398 @@
+# Cloud Health Office Helm Chart Values
+#
+# This chart deploys a cloud-agnostic X12 EDI processing platform using:
+# - Argo Workflows for orchestration
+# - Apache Kafka for event streaming
+# - S3-compatible storage (MinIO or AWS S3)
+# - Custom containers for X12 processing
+#
+# HIPAA Compliance: Ensure all secrets are properly secured and audit logging is enabled.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Namespace configuration
+namespace:
+  create: true
+  name: cloudhealthoffice
+
+# Container images
+images:
+  x12Parser:
+    repository: cloudhealthoffice/x12-parser
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  x12Encoder:
+    repository: cloudhealthoffice/x12-encoder
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  sftpFetcher:
+    repository: cloudhealthoffice/sftp-fetcher
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  metadataExtractor:
+    repository: cloudhealthoffice/metadata-extractor
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  kafkaPublisher:
+    repository: cloudhealthoffice/kafka-publisher
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+# Argo Workflows configuration
+argo-workflows:
+  enabled: true
+  controller:
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  server:
+    enabled: true
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+# Argo Events configuration
+argo-events:
+  enabled: true
+  controller:
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+# Kafka configuration
+kafka:
+  enabled: true
+  # Use external Kafka cluster
+  external:
+    enabled: false
+    bootstrapServers: ""
+    securityProtocol: "SASL_SSL"
+  # Topics to create
+  topics:
+    - name: edi-raw-files
+      partitions: 3
+      replicationFactor: 3
+      retentionMs: 604800000  # 7 days
+    - name: attachments-in
+      partitions: 3
+      replicationFactor: 3
+      retentionMs: 2592000000  # 30 days
+    - name: edi-278
+      partitions: 3
+      replicationFactor: 3
+      retentionMs: 2592000000
+    - name: rfai-requests
+      partitions: 3
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: edi-277-outbound
+      partitions: 3
+      replicationFactor: 3
+      retentionMs: 2592000000
+    - name: dead-letter-queue
+      partitions: 3
+      replicationFactor: 3
+      retentionMs: 7776000000  # 90 days
+
+# MinIO (S3-compatible storage)
+minio:
+  enabled: false  # Set to true for self-hosted S3
+  mode: standalone
+  rootUser: minio-admin
+  rootPassword: ""  # Set via secret
+  buckets:
+    - name: hipaa-attachments
+      policy: none
+      purge: false
+  persistence:
+    enabled: true
+    size: 100Gi
+
+# S3 configuration (for AWS S3 or MinIO)
+storage:
+  type: "s3"  # s3 or minio
+  bucket: "hipaa-attachments"
+  region: "us-east-1"
+  endpoint: ""  # Leave empty for AWS S3, set for MinIO
+  encryption: true
+  # Folders structure
+  folders:
+    raw275: "raw/275"
+    raw278: "raw/278"
+    outbound277: "outbound/277"
+
+# SFTP configuration (Clearinghouse)
+sftp:
+  host: "sftp.clearinghouse.example.com"
+  port: 22
+  inboundFolder: "/inbound/attachments"
+  inbound278Folder: "/inbound/278"
+  outboundFolder: "/outbound/277"
+  # Credentials stored in Kubernetes Secret
+  secretName: "clearinghouse-sftp-secret"
+
+# Trading partner configuration
+tradingPartners:
+  clearinghouse:
+    id: "030240928"
+    qualifier: "ZZ"
+    name: "Clearinghouse"
+  healthPlan:
+    id: ""  # Set via ConfigMap or Secret
+    qualifier: "ZZ"
+    name: "Health Plan"
+
+# claims backend API configuration
+backend:
+  baseUrl: "https://backend.api.local"
+  endpoints:
+    linkAttachment: "/claims/link-attachment"
+    process278: "/claims/process-278"
+    getClaimInfo: "/claims"
+  timeout: 30
+  retries: 4
+  retryDelay: 15
+  # API token stored in Kubernetes Secret
+  secretName: "claims-backend-api-secret"
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+  grafana:
+    enabled: true
+    dashboards:
+      enabled: true
+
+# Alerting rules
+alerting:
+  enabled: true
+  rules:
+    workflowFailure:
+      enabled: true
+      threshold: 1
+      for: "5m"
+    kafkaLag:
+      enabled: true
+      threshold: 1000
+      for: "10m"
+    x12ParsingErrors:
+      enabled: true
+      threshold: 5
+      for: "15m"
+
+# RBAC configuration
+rbac:
+  create: true
+  serviceAccount:
+    create: true
+    name: "argo-workflow-sa"
+    annotations: {}
+
+# Pod security settings
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+
+containerSecurityContext:
+  runAsUser: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Network policies
+networkPolicy:
+  enabled: true
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+
+# Resource defaults for workflow containers
+resources:
+  default:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  x12Parser:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Workflow-specific settings
+workflows:
+  ttlAfterCompletion: 86400  # 24 hours
+  ttlAfterSuccess: 43200      # 12 hours
+  ttlAfterFailure: 604800     # 7 days
+  retryLimit: 3
+  activeDeadlineSeconds: 1800 # 30 minutes
+
+# =============================================================================
+# Secrets Management - Choose one of the following options
+# =============================================================================
+# Option 1: HashiCorp Vault (Recommended for multi-cloud)
+# Option 2: Kubernetes Secrets (default, managed by kubectl)
+# Option 3: Cloud-native (Azure Key Vault, AWS Secrets Manager, GCP Secret Manager)
+
+vault:
+  # Enable HashiCorp Vault integration for cloud-agnostic secrets management
+  # When false, secrets are managed via Kubernetes Secrets (kubectl create secret)
+  # Set to true and configure the options below to use external secrets management
+  enabled: false
+  
+  # Vault type (only used when enabled: true)
+  # Options: hashicorp, azure-keyvault, aws-secrets-manager, gcp-secret-manager
+  type: hashicorp
+  
+  # HashiCorp Vault settings (used when type: hashicorp)
+  hashicorp:
+    # Internal address if Vault is deployed in the same cluster
+    # Use HTTPS for production deployments (TLS required for PHI compliance)
+    address: "https://vault.cloudhealthoffice.svc:8200"
+    # External address for Vault outside the cluster
+    # address: "https://vault.example.com"
+    
+    # Kubernetes auth method role
+    role: "cloudhealthoffice"
+    
+    # Path to secrets in Vault KV v2
+    secretPath: "cloudhealthoffice/data"
+    
+    # Enable Vault Agent Injector for automatic secret injection
+    agentInject:
+      enabled: true
+      # Secrets to inject into pods
+      secrets:
+        - name: sftp
+          path: "cloudhealthoffice/data/sftp"
+          template: |
+            {{- with secret "cloudhealthoffice/data/sftp" -}}
+            SFTP_USERNAME={{ .Data.data.username }}
+            SFTP_PASSWORD={{ .Data.data.password }}
+            {{- end -}}
+        - name: backend
+          path: "cloudhealthoffice/data/backend"
+          template: |
+            {{- with secret "cloudhealthoffice/data/backend" -}}
+            CLAIMS_BACKEND_API_TOKEN={{ .Data.data.apiToken }}
+            claims backend_BASE_URL={{ .Data.data.baseUrl }}
+            {{- end -}}
+        - name: kafka
+          path: "cloudhealthoffice/data/kafka"
+          template: |
+            {{- with secret "cloudhealthoffice/data/kafka" -}}
+            KAFKA_SASL_USERNAME={{ .Data.data.saslUsername }}
+            KAFKA_SASL_PASSWORD={{ .Data.data.saslPassword }}
+            {{- end -}}
+    
+    # TLS configuration
+    tls:
+      enabled: false
+      secretName: "vault-tls"
+      caPath: "/vault/tls/ca.crt"
+  
+  # Azure Key Vault settings (if type: azure-keyvault)
+  azureKeyVault:
+    vaultName: ""
+    tenantId: ""
+    clientId: ""
+    # Use managed identity or service principal
+    useManagedIdentity: true
+  
+  # AWS Secrets Manager settings (if type: aws-secrets-manager)
+  awsSecretsManager:
+    region: "us-east-1"
+    # Use IAM roles for service accounts (IRSA)
+    useIRSA: true
+  
+  # GCP Secret Manager settings (if type: gcp-secret-manager)
+  gcpSecretManager:
+    projectId: ""
+    # Use Workload Identity
+    useWorkloadIdentity: true
+
+# =============================================================================
+# HashiCorp Vault Deployment (Optional - deploy Vault in-cluster)
+# =============================================================================
+# Set to true to deploy HashiCorp Vault as part of this chart
+# For production, consider using HashiCorp Cloud Platform (HCP) Vault
+vaultServer:
+  # Deploy Vault server in the cluster
+  enabled: false
+  
+  # Vault Helm chart configuration (passed to subchart)
+  server:
+    dev:
+      enabled: false  # Set to true for development/testing only
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: true
+    
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+    
+    dataStorage:
+      enabled: true
+      size: 10Gi
+    
+    auditStorage:
+      enabled: true
+      size: 10Gi
+  
+  injector:
+    enabled: true
+    replicas: 2
+  
+  ui:
+    enabled: true
+    serviceType: ClusterIP
+
+# HIPAA compliance settings
+hipaa:
+  auditLogging: true
+  phiRedaction: true
+  encryptionAtRest: true
+  encryptionInTransit: true
+  dataRetentionDays: 2555  # 7 years

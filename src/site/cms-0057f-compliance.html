@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>CMS-0057-F Readiness — Cloud Health Office | Vendor-Neutral FHIR R4 for Any Payer CAPS Platform</title>
+  <meta name="description" content="Evaluate CMS-0057-F readiness without replacing your core admin system. Cloud Health Office is a vendor-neutral FHIR R4 readiness layer that works alongside QNXT, Facets, HealthEdge, and Amisys. Patient Access API, Provider Access API, Prior Auth API."/>
+  <link rel="canonical" href="https://cloudhealthoffice.com/cms-0057f-compliance"/>
+
+  <!-- Open Graph -->
+
+  <meta property="og:title" content="CMS-0057-F Readiness — Cloud Health Office"/>
+  <meta property="og:description" content="Vendor-neutral CMS-0057-F readiness layer deployable alongside an existing CAPS. FHIR R4 APIs, Da Vinci IGs, X12 EDI, and Kubernetes-native deployment."/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="https://cloudhealthoffice.com/cms-0057f-compliance"/>
+  <meta property="og:image" content="https://cloudhealthoffice.com/graphics/cloudhealthoffice/cms-interoperability-layer.jpg"/>
+  <meta property="og:site_name" content="Cloud Health Office"/>
+
+  <!-- Twitter -->
+
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="CMS-0057-F Readiness — Cloud Health Office"/>
+  <meta name="twitter:description" content="Vendor-neutral FHIR R4 readiness layer for payer CAPS platforms. Kubernetes-native and deployable alongside legacy core systems."/>
+  <meta name="twitter:image" content="https://cloudhealthoffice.com/graphics/cloudhealthoffice/cms-interoperability-layer.jpg"/>
+
+  <!-- JSON-LD: SoftwareApplication -->
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Cloud Health Office",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "Linux, Kubernetes (AKS, EKS, GKE)",
+    "description": "Vendor-neutral CMS-0057-F readiness layer that deploys alongside core admin processing systems (QNXT, Facets, HealthEdge, Amisys). FHIR R4 APIs with Da Vinci IG support, X12 EDI processing, and multi-clearinghouse connectivity.",
+    "url": "https://cloudhealthoffice.com/cms-0057f-compliance",
+    "author": {
+      "@type": "Organization",
+      "name": "Aurelianware, Inc.",
+      "url": "https://github.com/aurelianware"
+    },
+    "offers": {
+      "@type": "Offer",
+      "description": "PMPM (per member per month) pricing across Platform Engagement layers (Layer 1 Compliance Accelerator, Layer 2 Progressive Modernization, Layer 3 Full CAPS Platform). Pilot-scoped, founding-partner terms negotiated per engagement.",
+      "url": "https://cloudhealthoffice.com/pricing"
+    },
+    "softwareVersion": "2026",
+    "license": "https://mariadb.com/bsl11/",
+    "featureList": [
+      "CMS-0057-F Readiness Surface",
+      "FHIR R4 APIs (Patient Access, Provider Access, Payer-to-Payer, Prior Auth)",
+      "Da Vinci IGs (PDex, PAS, CRD, DTR)",
+      "X12 EDI Processing (270/271, 278, 837, 835, 275)",
+      "Multi-Clearinghouse EDI (Availity, Change Healthcare, Optum, Inovalon)",
+      "Kubernetes-Native Multi-Cloud Deployment",
+      "HIPAA Security Controls for Deployment Validation",
+      "Multi-Tenant Architecture",
+      "OAuth 2.0 / SMART on FHIR",
+      "Bulk FHIR Export",
+      "USCDI v1/v2 Data Class Coverage"
+    ]
+  }
+  </script>
+
+  <!-- JSON-LD: FAQ for rich snippets -->
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is CMS-0057-F?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The Advancing Interoperability and Improving Prior Authorization Processes final rule requires Medicare Advantage, Medicaid, CHIP, and QHP issuers to implement standardized FHIR R4 APIs — improving prior authorization, reducing provider burden, and enabling patient data access. The compliance deadline is January 1, 2027."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Who must comply with CMS-0057-F?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "CMS-0057-F applies to Medicare Advantage organizations, Medicaid managed care plans and fee-for-service programs, CHIP fee-for-service and managed care entities, and Qualified Health Plan issuers on the federal Marketplaces. Impacted payers must implement the Patient Access, Provider Access, Payer-to-Payer, and Prior Authorization APIs by January 1, 2027."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- JSON-LD: Breadcrumb -->
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type":"ListItem","position":1,"name":"Cloud Health Office","item":"https://cloudhealthoffice.com/"},
+      {"@type":"ListItem","position":2,"name":"CMS-0057-F Compliance","item":"https://cloudhealthoffice.com/cms-0057f-compliance"}
+    ]
+  }
+  </script>
+
+  <!-- Preconnect -->
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/editorial-visuals.css"/>
+
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --cyan:#00ffff;--green:#00ff88;--blue:#00b4ff;
+      --bg:#000;--surface:rgba(8,8,8,.92);--surface-alt:rgba(0,255,255,.03);
+      --border:rgba(0,255,255,.12);--border-green:rgba(0,255,136,.12);
+      --border-bright:rgba(0,255,255,.3);
+      --text:#e0e0e0;--text-muted:#a0a0a0;--text-dim:#606060;
+      --font:'Outfit',system-ui,sans-serif;
+      --mono:'JetBrains Mono',monospace;
+      --max:1140px;
+    }
+    html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+    body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.7;overflow-x:hidden}
+
+    /* ── NAV ── */
+    nav{position:sticky;top:0;z-index:100;background:rgba(0,0,0,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 2rem}
+    .nav-inner{max-width:var(--max);margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:56px}
+    .nav-brand{font-weight:800;font-size:1.05rem;color:#fff;text-decoration:none;display:flex;align-items:center;gap:.6rem}
+    .nav-brand span{opacity:.5;font-weight:400;font-size:.8rem}
+    .nav-links{display:flex;gap:1.8rem;align-items:center}
+    .nav-links a{color:var(--text-muted);text-decoration:none;font-size:.82rem;font-weight:500;transition:color .2s}
+    .nav-links a:hover{color:var(--cyan)}
+    .nav-cta{background:rgba(0,255,255,.08);border:1px solid rgba(0,255,255,.25);color:var(--cyan);padding:.35rem .9rem;border-radius:6px;font-size:.78rem;font-weight:600;text-decoration:none;transition:all .25s}
+    .nav-cta:hover{background:rgba(0,255,255,.15);box-shadow:0 0 20px rgba(0,255,255,.1)}
+
+    /* ── HERO ── */
+    .hero{padding:5rem 2rem 4rem;text-align:center;position:relative;overflow:hidden}
+    .hero::before{content:'';position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(0,255,255,.04) 0%,transparent 70%);pointer-events:none}
+    .hero-eyebrow{font-family:var(--mono);font-size:.72rem;font-weight:500;color:var(--cyan);text-transform:uppercase;letter-spacing:3px;margin-bottom:1rem;opacity:.8}
+    .hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:900;color:#fff;line-height:1.15;max-width:800px;margin:0 auto 1.2rem}
+    .hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--cyan),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .hero-sub{font-size:1.05rem;color:var(--text-muted);max-width:680px;margin:0 auto 2rem;line-height:1.8}
+    .hero-badges{display:flex;flex-wrap:wrap;justify-content:center;gap:.6rem;margin-bottom:2.5rem}
+    .badge{font-family:var(--mono);font-size:.68rem;font-weight:500;padding:.3rem .7rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted)}
+    .badge.cyan{border-color:rgba(0,255,255,.25);color:var(--cyan)}
+    .badge.green{border-color:rgba(0,255,136,.25);color:var(--green)}
+    .hero-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:.8rem}
+    .btn{display:inline-flex;align-items:center;gap:.4rem;padding:.7rem 1.4rem;border-radius:8px;font-size:.85rem;font-weight:600;text-decoration:none;transition:all .25s}
+    .btn-primary{background:rgba(0,255,255,.1);border:1px solid rgba(0,255,255,.3);color:var(--cyan)}
+    .btn-primary:hover{background:rgba(0,255,255,.18);box-shadow:0 0 30px rgba(0,255,255,.1)}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.1);color:var(--text-muted)}
+    .btn-ghost:hover{border-color:rgba(255,255,255,.2);color:#fff}
+
+    /* ── SECTIONS ── */
+    section{padding:4.5rem 2rem}
+    .container{max-width:var(--max);margin:0 auto}
+    .section-label{font-family:var(--mono);font-size:.65rem;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:3px;margin-bottom:.6rem;opacity:.7}
+    .section-title{font-size:clamp(1.5rem,3.5vw,2.2rem);font-weight:800;color:#fff;margin-bottom:.6rem;line-height:1.2}
+    .section-desc{font-size:.95rem;color:var(--text-muted);max-width:640px;line-height:1.8;margin-bottom:2.5rem}
+
+    /* ── STATS ROW ── */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:3rem auto 0;max-width:900px}
+    .stat{background:var(--surface);padding:1.8rem 1rem;text-align:center}
+    .stat-num{font-size:2rem;font-weight:800;color:#fff;line-height:1}
+    .stat-num.cyan{color:var(--cyan)}
+    .stat-num.green{color:var(--green)}
+    .stat-label{font-size:.72rem;color:var(--text-dim);margin-top:.4rem;line-height:1.4}
+
+    /* ── ARCHITECTURE DIAGRAM ── */
+    .arch-diagram{width:100%;max-width:1360px;margin:0 auto;overflow-x:auto}
+    .arch-diagram svg{width:100%;height:auto}
+
+    /* ── API GRID ── */
+    .api-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem}
+    .api-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.6rem;position:relative;transition:border-color .3s,box-shadow .3s}
+    .api-card:hover{border-color:var(--border-bright);box-shadow:0 0 30px rgba(0,255,255,.05)}
+    .api-card h3{font-size:1rem;font-weight:700;color:#fff;margin-bottom:.3rem}
+    .api-card .api-tag{font-family:var(--mono);font-size:.62rem;color:var(--cyan);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:.8rem;display:block}
+    .api-card p{font-size:.82rem;color:var(--text-muted);line-height:1.7}
+    .api-card .status{position:absolute;top:1.2rem;right:1.2rem;font-size:.65rem;font-weight:600;color:var(--green);display:flex;align-items:center;gap:.3rem}
+    .api-card .status::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+
+    /* ── COMPLIANCE TABLE ── */
+    .compliance-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:1.5rem}
+    .compliance-table th{font-family:var(--mono);font-size:.65rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);text-align:left;padding:.8rem 1rem;border-bottom:1px solid var(--border);font-weight:600}
+    .compliance-table td{padding:.75rem 1rem;border-bottom:1px solid rgba(255,255,255,.03);color:var(--text-muted);vertical-align:middle}
+    .compliance-table tr:hover td{background:rgba(0,255,255,.02)}
+    .compliance-table .status-badge{font-family:var(--mono);font-size:.65rem;font-weight:600;padding:.2rem .5rem;border-radius:3px}
+    .compliance-table .done{color:var(--green);background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.15)}
+    .compliance-table .prod{color:var(--cyan);background:rgba(0,255,255,.06);border:1px solid rgba(0,255,255,.12)}
+    .compliance-table td:first-child{color:#fff;font-weight:600}
+
+    /* ── TIMELINE ── */
+    .timeline{position:relative;padding:2rem 0}
+    .timeline-track{position:absolute;left:20px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--cyan),var(--green))}
+    .timeline-item{position:relative;padding-left:52px;margin-bottom:2.5rem}
+    .timeline-dot{position:absolute;left:13px;top:4px;width:16px;height:16px;border-radius:50%;border:2px solid var(--cyan);background:var(--bg)}
+    .timeline-dot.active{background:var(--cyan);box-shadow:0 0 12px rgba(0,255,255,.4)}
+    .timeline-dot.green{border-color:var(--green)}
+    .timeline-dot.green.active{background:var(--green);box-shadow:0 0 12px rgba(0,255,136,.4)}
+    .timeline-date{font-family:var(--mono);font-size:.7rem;color:var(--cyan);font-weight:600;margin-bottom:.2rem}
+    .timeline-title{font-size:.95rem;font-weight:700;color:#fff;margin-bottom:.2rem}
+    .timeline-desc{font-size:.8rem;color:var(--text-muted);line-height:1.6}
+
+    /* ── X12 FHIR FLOW DIAGRAM ── */
+    .flow-diagram{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2rem;overflow-x:auto}
+    .flow-diagram svg{display:block;margin:0 auto}
+
+    /* ── CHECKLIST ── */
+    .checklist{columns:2;column-gap:2rem}
+    .checklist-group{break-inside:avoid;margin-bottom:2rem}
+    .checklist-group h4{font-size:.78rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+    .checklist-item{display:flex;align-items:flex-start;gap:.5rem;font-size:.78rem;color:var(--text-muted);margin-bottom:.4rem;line-height:1.5}
+    .checklist-item::before{content:'☐';color:var(--text-dim);flex-shrink:0;font-size:.7rem;margin-top:1px}
+
+    /* ── PRICING ── */
+    .pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+    .price-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:2rem;position:relative}
+    .price-card.featured{border-color:rgba(0,255,255,.3);box-shadow:0 0 40px rgba(0,255,255,.05)}
+    .price-card.featured::before{content:'Most Popular';position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.6rem;font-weight:600;color:var(--bg);background:var(--cyan);padding:.15rem .6rem;border-radius:3px;text-transform:uppercase;letter-spacing:1px}
+    .price-tier{font-size:.75rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:2px;margin-bottom:.3rem}
+    .price-amount{font-size:2.2rem;font-weight:900;color:#fff}
+    .price-amount span{font-size:.8rem;font-weight:400;color:var(--text-dim)}
+    .price-desc{font-size:.78rem;color:var(--text-muted);margin:.6rem 0 1.2rem;line-height:1.6}
+    .price-features{list-style:none;font-size:.75rem;color:var(--text-muted)}
+    .price-features li{padding:.3rem 0;display:flex;align-items:center;gap:.4rem}
+    .price-features li::before{content:'✓';color:var(--green);font-weight:700;font-size:.7rem}
+
+    /* ── CTA ── */
+    .cta-section{text-align:center;padding:5rem 2rem;background:linear-gradient(180deg,transparent,rgba(0,255,255,.02),transparent)}
+    .cta-section h2{font-size:clamp(1.4rem,3vw,2rem);font-weight:800;color:#fff;margin-bottom:.6rem}
+    .cta-section p{color:var(--text-muted);font-size:.9rem;max-width:500px;margin:0 auto 2rem}
+
+    /* ── FOOTER ── */
+    footer{border-top:1px solid rgba(255,255,255,.04);padding:2rem;text-align:center;font-size:.7rem;color:var(--text-dim)}
+    footer a{color:var(--text-muted);text-decoration:none}
+    footer a:hover{color:var(--cyan)}
+
+    /* ── DIVIDER ── */
+    .divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:0 auto;max-width:var(--max)}
+
+    /* ── RESPONSIVE ── */
+    @media(max-width:768px){
+      .stats{grid-template-columns:repeat(2,1fr)}
+      .nav-links{display:none}
+      .checklist{columns:1}
+      .pricing-grid{grid-template-columns:1fr}
+      section{padding:3rem 1.2rem}
+    }
+    @media(max-width:480px){
+      .stats{grid-template-columns:1fr}
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    .fade-up{animation:fadeUp .6s ease both}
+    .fade-up:nth-child(2){animation-delay:.1s}
+    .fade-up:nth-child(3){animation-delay:.2s}
+    .fade-up:nth-child(4){animation-delay:.3s}
+
+    /* ── SCROLL ANIMATIONS ── */
+    [data-reveal]{opacity:0;transform:translateY(24px);transition:opacity .5s ease,transform .5s ease}
+    [data-reveal].visible{opacity:1;transform:translateY(0)}
+  </style>
+
+</head>
+<body>
+
+<!-- ═══════════════ NAV ═══════════════ -->
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://cloudhealthoffice.com" class="nav-brand">Cloud Health Office <span>CMS-0057-F</span></a>
+    <div class="nav-links">
+      <a href="https://cloudhealthoffice.com/solutions-payers">Solutions</a>
+      <a href="https://cloudhealthoffice.com/platform">Platform</a>
+      <a href="https://cloudhealthoffice.com/pricing">Pricing</a>
+      <a href="https://cloudhealthoffice.com/trust">Trust</a>
+      <a href="https://cloudhealthoffice.com/docs">Docs</a>
+      <a href="https://github.com/aurelianware/cloudhealthoffice">GitHub</a>
+      <a href="/founder">Founder</a>
+      <a href="/contact" class="nav-cta">Contact Sales →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+
+<header class="hero" id="top">
+  <div class="hero-eyebrow">CMS-0057-F Compliance Guide</div>
+  <h1>A <em>Vendor-Neutral</em> CMS-0057-F Compliance Layer for Payer CAPS Platforms</h1>
+  <p class="hero-sub">Achieve CMS Interoperability and Prior Authorization compliance without replacing your core admin system. FHIR R4 APIs, Da Vinci IGs, and X12 EDI on a Kubernetes-native compliance layer.</p>
+  <div class="hero-badges">
+    <span class="badge cyan">FHIR R4</span>
+    <span class="badge cyan">Da Vinci PAS</span>
+    <span class="badge cyan">Da Vinci PDex</span>
+    <span class="badge green">Automated Validation</span>
+    <span class="badge green">Security Scanning</span>
+    <span class="badge">HIPAA</span>
+    <span class="badge">USCDI v1/v2</span>
+    <span class="badge">Kubernetes</span>
+  </div>
+  <div class="hero-actions">
+    <a href="/contact" class="btn btn-primary">Contact Sales →</a>
+    <a href="/contact" class="btn btn-ghost">Book a 30-min CMS-0057-F readiness review</a>
+    <a href="https://github.com/aurelianware/cloudhealthoffice" class="btn btn-ghost">View Source on GitHub</a>
+  </div>
+
+  <div class="stats fade-up">
+    <div class="stat">
+      <div class="stat-num cyan">API</div>
+      <div class="stat-label">FHIR Surface<br/>Validation</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num green">Scan</div>
+      <div class="stat-label">Dependency<br/>and Secret Checks</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num cyan">4 / 4</div>
+      <div class="stat-label">Required APIs<br/>Implemented</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num green">&lt;1hr</div>
+      <div class="stat-label">Local<br/>Evaluation</div>
+    </div>
+  </div>
+</header>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ WHAT IS CMS-0057-F ═══════════════ -->
+
+<section id="what-is-cms-0057f" data-reveal>
+  <div class="container">
+    <div class="section-label">Background</div>
+    <h2 class="section-title">What is CMS-0057-F?</h2>
+    <p class="section-desc">The <strong>Advancing Interoperability and Improving Prior Authorization Processes</strong> final rule requires Medicare Advantage, Medicaid, CHIP, and QHP issuers to implement standardized FHIR R4 APIs — improving prior authorization, reducing provider burden, and enabling patient data access. Compliance deadline: <strong>January 1, 2027</strong>.</p>
+
+<!-- Inline SVG: Required APIs Diagram -->
+<div class="flow-diagram" data-reveal>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" width="960" height="320" role="img" aria-label="CMS-0057-F required APIs diagram showing four API categories">
+    <defs>
+      <linearGradient id="cg1" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#00ffff"/><stop offset="100%" stop-color="#00ff88"/></linearGradient>
+      <filter id="g1"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="960" height="320" fill="#080808" rx="8"/>
+
+    <!-- Title -->
+    <text x="480" y="36" font-family="Outfit,sans-serif" font-size="15" font-weight="800" fill="#fff" text-anchor="middle">CMS-0057-F — Four Required FHIR R4 APIs</text>
+    <text x="480" y="54" font-family="JetBrains Mono,monospace" font-size="9" fill="#606060" text-anchor="middle">ALL REQUIRED BY JANUARY 1, 2027 — CLOUD HEALTH OFFICE: IMPLEMENTED</text>
+
+    <!-- API 1: Patient Access -->
+    <g transform="translate(30,80)">
+      <rect width="210" height="220" rx="8" fill="rgba(0,255,255,.04)" stroke="rgba(0,255,255,.2)" stroke-width="1"/>
+      <rect width="210" height="32" rx="8" fill="rgba(0,255,255,.08)"/>
+      <rect width="210" height="1" y="32" fill="rgba(0,255,255,.15)"/>
+      <text x="105" y="22" font-family="Outfit,sans-serif" font-size="11" font-weight="700" fill="#00ffff" text-anchor="middle" filter="url(#g1)">Patient Access API</text>
+      <text x="14" y="56" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Claims &amp; encounters data</text>
+      <text x="14" y="74" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Clinical info via USCDI</text>
+      <text x="14" y="92" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">1 business day of adjudication</text>
+      <line x1="14" y1="108" x2="196" y2="108" stroke="rgba(255,255,255,.05)"/>
+      <text x="14" y="126" font-family="JetBrains Mono,monospace" font-size="8" fill="#606060">FHIR RESOURCES</text>
+      <text x="14" y="144" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">Patient</text>
+      <text x="14" y="160" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">Coverage</text>
+      <text x="14" y="176" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">Claim / EOB</text>
+      <text x="14" y="192" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">Encounter</text>
+      <text x="170" y="210" font-family="Outfit,sans-serif" font-size="9" font-weight="700" fill="#00ff88" text-anchor="end">Implemented</text>
+    </g>
+
+    <!-- API 2: Provider Access -->
+    <g transform="translate(260,80)">
+      <rect width="210" height="220" rx="8" fill="rgba(0,255,255,.04)" stroke="rgba(0,255,255,.2)" stroke-width="1"/>
+      <rect width="210" height="32" rx="8" fill="rgba(0,255,255,.08)"/>
+      <rect width="210" height="1" y="32" fill="rgba(0,255,255,.15)"/>
+      <text x="105" y="22" font-family="Outfit,sans-serif" font-size="11" font-weight="700" fill="#00ffff" text-anchor="middle" filter="url(#g1)">Provider Access API</text>
+      <text x="14" y="56" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Authorized patient data</text>
+      <text x="14" y="74" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Real-time / near-real-time</text>
+      <text x="14" y="92" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">NPI-based authorization</text>
+      <line x1="14" y1="108" x2="196" y2="108" stroke="rgba(255,255,255,.05)"/>
+      <text x="14" y="126" font-family="JetBrains Mono,monospace" font-size="8" fill="#606060">FHIR RESOURCES</text>
+      <text x="14" y="144" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">ServiceRequest</text>
+      <text x="14" y="160" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">DocumentReference</text>
+      <text x="14" y="176" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">Claim / EOB</text>
+      <text x="14" y="192" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ffff">Condition / Procedure</text>
+      <text x="170" y="210" font-family="Outfit,sans-serif" font-size="9" font-weight="700" fill="#00ff88" text-anchor="end">Implemented</text>
+    </g>
+
+    <!-- API 3: Payer-to-Payer -->
+    <g transform="translate(490,80)">
+      <rect width="210" height="220" rx="8" fill="rgba(0,255,136,.04)" stroke="rgba(0,255,136,.2)" stroke-width="1"/>
+      <rect width="210" height="32" rx="8" fill="rgba(0,255,136,.08)"/>
+      <rect width="210" height="1" y="32" fill="rgba(0,255,136,.15)"/>
+      <text x="105" y="22" font-family="Outfit,sans-serif" font-size="11" font-weight="700" fill="#00ff88" text-anchor="middle" filter="url(#g1)">Payer-to-Payer API</text>
+      <text x="14" y="56" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Data exchange on enrollment</text>
+      <text x="14" y="74" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">5-year historical data</text>
+      <text x="14" y="92" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Bulk FHIR $export</text>
+      <line x1="14" y1="108" x2="196" y2="108" stroke="rgba(255,255,255,.05)"/>
+      <text x="14" y="126" font-family="JetBrains Mono,monospace" font-size="8" fill="#606060">CAPABILITIES</text>
+      <text x="14" y="144" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">Bulk Data Export</text>
+      <text x="14" y="160" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">Enrollment Trigger</text>
+      <text x="14" y="176" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">Lifecycle Retention</text>
+      <text x="14" y="192" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">OAuth 2.0 Consent</text>
+      <text x="170" y="210" font-family="Outfit,sans-serif" font-size="9" font-weight="700" fill="#00ff88" text-anchor="end">Implemented</text>
+    </g>
+
+    <!-- API 4: Prior Auth -->
+    <g transform="translate(720,80)">
+      <rect width="210" height="220" rx="8" fill="rgba(0,255,136,.04)" stroke="rgba(0,255,136,.2)" stroke-width="1"/>
+      <rect width="210" height="32" rx="8" fill="rgba(0,255,136,.08)"/>
+      <rect width="210" height="1" y="32" fill="rgba(0,255,136,.15)"/>
+      <text x="105" y="22" font-family="Outfit,sans-serif" font-size="11" font-weight="700" fill="#00ff88" text-anchor="middle" filter="url(#g1)">Prior Authorization API</text>
+      <text x="14" y="56" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Real-time auth status</text>
+      <text x="14" y="74" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">72hr urgent / 7-day standard</text>
+      <text x="14" y="92" font-family="Outfit,sans-serif" font-size="9.5" fill="#a0a0a0">Decision rationale required</text>
+      <line x1="14" y1="108" x2="196" y2="108" stroke="rgba(255,255,255,.05)"/>
+      <text x="14" y="126" font-family="JetBrains Mono,monospace" font-size="8" fill="#606060">DA VINCI PAS</text>
+      <text x="14" y="144" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">ServiceRequest</text>
+      <text x="14" y="160" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">ClaimResponse</text>
+      <text x="14" y="176" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">DocumentReference</text>
+      <text x="14" y="192" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#00ff88">X12 278 ↔ FHIR</text>
+      <text x="170" y="210" font-family="Outfit,sans-serif" font-size="9" font-weight="700" fill="#00ff88" text-anchor="end">Implemented</text>
+    </g>
+  </svg>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ ARCHITECTURE ═══════════════ -->
+
+<section id="architecture" data-reveal>
+  <div class="container">
+    <div class="section-label">Platform Architecture</div>
+    <h2 class="section-title">How Cloud Health Office Fits Your Stack</h2>
+    <p class="section-desc">CHO deploys as a compliance layer alongside your existing core admin processing system. No replatforming. No rip-and-replace. Your CAPS stays in place — CHO handles FHIR, EDI, terminology translation, provider verification, and CMS compliance.</p>
+
+    <figure id="compliance-layer-visual" class="cho-visual" data-reveal>
+      <div class="cho-visual__frame">
+        <img class="cho-visual__image"
+             src="graphics/cloudhealthoffice/cms-interoperability-layer.jpg"
+             width="1672" height="941"
+             loading="lazy"
+             alt="An existing payer core sends healthcare transactions through a modular compliance gateway with security, consent, routing, bidirectional data translation, and audit services, then out to member, provider, payer, and regulator-facing channels." />
+      </div>
+      <div class="cho-visual__key" aria-label="CMS interoperability architecture">
+        <div class="cho-visual__key-item"><strong>Existing core</strong>The payer’s current CAPS and source data remain systems of record.</div>
+        <div class="cho-visual__key-item"><strong>CHO layer</strong>Security, consent, prior authorization, translation, and evidence sit beside the core.</div>
+        <div class="cho-visual__key-item"><strong>Required access</strong>FHIR-facing channels serve members, providers, and payer-to-payer exchange.</div>
+      </div>
+      <figcaption class="cho-visual__caption">The illustration gives the architectural relationship; the implementation diagram below names the individual services and standards.</figcaption>
+    </figure>
+
+<div class="arch-diagram" data-reveal>
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="1280" viewBox="0 0 1360 1280">
+<style>
+  text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  .title { font-size: 28px; font-weight: 700; fill: #ffffff; }
+  .subtitle { font-size: 20px; font-weight: 400; fill: rgba(255,255,255,0.6); }
+  .section-label { font-size: 16px; font-weight: 500; fill: rgba(255,255,255,0.35); letter-spacing: 1px; text-transform: uppercase; }
+  .box-title { font-size: 18px; font-weight: 600; }
+  .box-sub { font-size: 14px; font-weight: 400; }
+  .label { font-size: 14px; fill: rgba(255,255,255,0.5); }
+  .legend { font-size: 13px; fill: rgba(255,255,255,0.4); }
+  .arr { stroke-width: 1.5; }
+  .leader { stroke-dasharray: 4 3; stroke-width: 1; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<!-- Background -->
+<rect width="1360" height="1280" rx="16" fill="#0b1120"/>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- EXTERNAL: Provider EHRs                                    -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<rect x="60" y="40" width="560" height="90" rx="12" fill="rgba(255,120,80,0.06)" stroke="rgba(255,120,80,0.25)" stroke-width="1"/>
+<text class="box-title" x="340" y="72" text-anchor="middle" fill="#ff9070">Provider EHRs</text>
+<text class="box-sub" x="340" y="96" text-anchor="middle" fill="rgba(255,144,112,0.6)">Epic · Meditech · Cerner · SMART on FHIR apps</text>
+
+<!-- EXTERNAL: Members -->
+<rect x="740" y="40" width="560" height="90" rx="12" fill="rgba(255,120,80,0.06)" stroke="rgba(255,120,80,0.25)" stroke-width="1"/>
+<text class="box-title" x="1020" y="72" text-anchor="middle" fill="#ff9070">Members / patients</text>
+<text class="box-sub" x="1020" y="96" text-anchor="middle" fill="rgba(255,144,112,0.6)">Third-party SMART on FHIR patient apps</text>
+
+<!-- Arrows: providers → CHO -->
+<line x1="340" y1="130" x2="340" y2="185" stroke="rgba(255,255,255,0.25)" class="arr" marker-end="url(#ah)"/>
+<text class="label" x="355" y="166">CDS Hooks</text>
+
+<!-- Arrow: members → CHO -->
+<line x1="1020" y1="130" x2="1020" y2="185" stroke="rgba(255,255,255,0.25)" class="arr" marker-end="url(#ah)"/>
+<text class="label" x="1035" y="166">FHIR R4</text>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- CHO CONTAINER                                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<rect x="30" y="190" width="1300" height="760" rx="20" fill="rgba(0,255,255,0.02)" stroke="rgba(0,255,255,0.12)" stroke-width="1" stroke-dasharray="8 4"/>
+
+<!-- Container title -->
+<text class="title" x="680" y="232" text-anchor="middle">Cloud Health Office</text>
+<text class="subtitle" x="680" y="262" text-anchor="middle">CMS-0057-F compliance layer — deploys alongside any core admin system</text>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<!-- ROW 1: Da Vinci Burden Reduction                           -->
+<!-- ─────────────────────────────────────────────────────────── -->
+<text class="section-label" x="75" y="302">Da Vinci burden reduction</text>
+
+<!-- CRD Server -->
+<rect x="65" y="318" width="380" height="100" rx="10" fill="rgba(0,200,160,0.08)" stroke="rgba(0,200,160,0.3)" stroke-width="1"/>
+<text class="box-title" x="255" y="355" text-anchor="middle" fill="#00e8a0">CRD server</text>
+<text class="box-sub" x="255" y="380" text-anchor="middle" fill="rgba(0,232,160,0.55)">Coverage Requirements Discovery</text>
+<text class="box-sub" x="255" y="400" text-anchor="middle" fill="rgba(0,232,160,0.55)">order-select · order-sign · CDS Hooks</text>
+
+<!-- DTR Engine -->
+<rect x="490" y="318" width="380" height="100" rx="10" fill="rgba(0,200,160,0.08)" stroke="rgba(0,200,160,0.3)" stroke-width="1"/>
+<text class="box-title" x="680" y="355" text-anchor="middle" fill="#00e8a0">DTR engine</text>
+<text class="box-sub" x="680" y="380" text-anchor="middle" fill="rgba(0,232,160,0.55)">Documentation Templates &amp; Rules</text>
+<text class="box-sub" x="680" y="400" text-anchor="middle" fill="rgba(0,232,160,0.55)">FHIR Questionnaire · QuestionnaireResponse</text>
+
+<!-- PAS Server -->
+<rect x="915" y="318" width="380" height="100" rx="10" fill="rgba(0,200,160,0.08)" stroke="rgba(0,200,160,0.3)" stroke-width="1"/>
+<text class="box-title" x="1105" y="355" text-anchor="middle" fill="#00e8a0">PAS server</text>
+<text class="box-sub" x="1105" y="380" text-anchor="middle" fill="rgba(0,232,160,0.55)">Prior Authorization Support</text>
+<text class="box-sub" x="1105" y="400" text-anchor="middle" fill="rgba(0,232,160,0.55)">Claim/$submit · 15-second SLA (validate per deployment)</text>
+
+<!-- Arrows: CRD → DTR → PAS -->
+<line x1="445" y1="368" x2="488" y2="368" stroke="#00ccaa" class="arr" marker-end="url(#ah)"/>
+<line x1="870" y1="368" x2="913" y2="368" stroke="#00ccaa" class="arr" marker-end="url(#ah)"/>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<!-- ROW 2: Compliance Intelligence                             -->
+<!-- ─────────────────────────────────────────────────────────── -->
+<text class="section-label" x="75" y="452">Compliance intelligence</text>
+
+<!-- Terminology Service -->
+<rect x="65" y="468" width="380" height="100" rx="10" fill="rgba(140,100,255,0.07)" stroke="rgba(140,100,255,0.25)" stroke-width="1"/>
+<text class="box-title" x="255" y="505" text-anchor="middle" fill="#b090ff">Terminology service</text>
+<text class="box-sub" x="255" y="530" text-anchor="middle" fill="rgba(176,144,255,0.55)">SNOMED CT ↔ CPT / ICD-10-CM crosswalk</text>
+<text class="box-sub" x="255" y="550" text-anchor="middle" fill="rgba(176,144,255,0.55)">ConceptMap/$translate · context disambiguation</text>
+
+<!-- Provider Verification -->
+<rect x="490" y="468" width="380" height="100" rx="10" fill="rgba(140,100,255,0.07)" stroke="rgba(140,100,255,0.25)" stroke-width="1"/>
+<text class="box-title" x="680" y="505" text-anchor="middle" fill="#b090ff">Provider verification</text>
+<text class="box-sub" x="680" y="530" text-anchor="middle" fill="rgba(176,144,255,0.55)">NPPES · OIG/LEIE · PECOS · FSMB</text>
+<text class="box-sub" x="680" y="550" text-anchor="middle" fill="rgba(176,144,255,0.55)">Composite integrity score (0–100) per NPI</text>
+
+<!-- SMART Auth -->
+<rect x="915" y="468" width="380" height="100" rx="10" fill="rgba(140,100,255,0.07)" stroke="rgba(140,100,255,0.25)" stroke-width="1"/>
+<text class="box-title" x="1105" y="505" text-anchor="middle" fill="#b090ff">SMART auth service</text>
+<text class="box-sub" x="1105" y="530" text-anchor="middle" fill="rgba(176,144,255,0.55)">OAuth 2.0 · JWT · scope enforcement</text>
+<text class="box-sub" x="1105" y="550" text-anchor="middle" fill="rgba(176,144,255,0.55)">Patient consent · provider authorization</text>
+
+<!-- Dashed arrows: CRD↓Terminology, PAS↓ProvVerif -->
+<line x1="255" y1="418" x2="255" y2="466" stroke="rgba(176,144,255,0.4)" class="leader" marker-end="url(#ah)"/>
+<line x1="1105" y1="418" x2="820" y2="466" stroke="rgba(176,144,255,0.4)" class="leader" marker-end="url(#ah)"/>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<!-- ROW 3: Platform                                            -->
+<!-- ─────────────────────────────────────────────────────────── -->
+<text class="section-label" x="75" y="602">Platform</text>
+
+<!-- FHIR APIs -->
+<rect x="65" y="618" width="380" height="100" rx="10" fill="rgba(0,160,255,0.06)" stroke="rgba(0,160,255,0.2)" stroke-width="1"/>
+<text class="box-title" x="255" y="655" text-anchor="middle" fill="#50b0ff">FHIR R4 APIs</text>
+<text class="box-sub" x="255" y="680" text-anchor="middle" fill="rgba(80,176,255,0.55)">Patient Access · Provider Access</text>
+<text class="box-sub" x="255" y="700" text-anchor="middle" fill="rgba(80,176,255,0.55)">Payer-to-Payer · Provider Directory</text>
+
+<!-- X12 Parsers -->
+<rect x="490" y="618" width="380" height="100" rx="10" fill="rgba(0,160,255,0.06)" stroke="rgba(0,160,255,0.2)" stroke-width="1"/>
+<text class="box-title" x="680" y="655" text-anchor="middle" fill="#50b0ff">X12 EDI parsers</text>
+<text class="box-sub" x="680" y="680" text-anchor="middle" fill="rgba(80,176,255,0.55)">278 · 837 · 835 · 834 · 276/277 · encoder</text>
+<text class="box-sub" x="680" y="700" text-anchor="middle" fill="rgba(80,176,255,0.55)">6 parsers · zero dependencies · bidirectional</text>
+
+<!-- Claims + Benefit -->
+<rect x="915" y="618" width="380" height="100" rx="10" fill="rgba(0,160,255,0.06)" stroke="rgba(0,160,255,0.2)" stroke-width="1"/>
+<text class="box-title" x="1105" y="655" text-anchor="middle" fill="#50b0ff">Claims + benefit engine</text>
+<text class="box-sub" x="1105" y="680" text-anchor="middle" fill="rgba(80,176,255,0.55)">10-step adjudication pipeline · &lt;500ms (validate per deployment)</text>
+<text class="box-sub" x="1105" y="700" text-anchor="middle" fill="rgba(80,176,255,0.55)">9 engines · NCCI · COB · DRG · HDHP/HSA</text>
+
+<!-- ─── ICoreAdminAdapter bar ─── -->
+<rect x="65" y="745" width="1230" height="70" rx="10" fill="rgba(255,200,0,0.05)" stroke="rgba(255,200,0,0.2)" stroke-width="1"/>
+<text class="box-title" x="680" y="776" text-anchor="middle" fill="#ffcc40">ICoreAdminAdapter</text>
+<text class="box-sub" x="680" y="798" text-anchor="middle" fill="rgba(255,204,64,0.5)">Vendor-neutral CAPS integration · augment mode (read-only) or replace mode · QNXT · Facets · HealthEdge · Amisys</text>
+
+<!-- ─── Infrastructure bar ─── -->
+<rect x="65" y="835" width="1230" height="56" rx="10" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text class="box-sub" x="680" y="868" text-anchor="middle" fill="rgba(255,255,255,0.3)">Kubernetes (AKS / EKS / GKE) · Argo Workflows · MongoDB / Cosmos DB · Redis · Azure Key Vault · KEDA scale-to-zero</text>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- EXTERNAL: Your CAPS                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<rect x="60" y="1040" width="560" height="100" rx="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+<text class="box-title" x="340" y="1078" text-anchor="middle" fill="rgba(255,255,255,0.7)">Your core admin system</text>
+<text class="box-sub" x="340" y="1104" text-anchor="middle" fill="rgba(255,255,255,0.35)">QNXT · Facets · HealthEdge · Amisys · custom</text>
+<text class="box-sub" x="340" y="1124" text-anchor="middle" fill="rgba(255,255,255,0.35)">Members · coverage · claims · benefits · provider contracts</text>
+
+<!-- EXTERNAL: Clearinghouse -->
+<rect x="740" y="1040" width="560" height="100" rx="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+<text class="box-title" x="1020" y="1078" text-anchor="middle" fill="rgba(255,255,255,0.7)">Clearinghouse</text>
+<text class="box-sub" x="1020" y="1104" text-anchor="middle" fill="rgba(255,255,255,0.35)">Availity · Change Healthcare · Optum · Inovalon</text>
+<text class="box-sub" x="1020" y="1124" text-anchor="middle" fill="rgba(255,255,255,0.35)">X12 278 prior auth · 837 claims · 835 remittance</text>
+
+<!-- Arrows: Adapter → CAPS -->
+<line x1="340" y1="815" x2="340" y2="1038" stroke="rgba(255,200,0,0.3)" class="arr" marker-end="url(#ah)"/>
+<text class="label" x="355" y="950">Members, coverage,</text>
+<text class="label" x="355" y="970">claims, benefits</text>
+<rect x="290" y="978" width="100" height="22" rx="4" fill="rgba(0,255,136,0.08)" stroke="rgba(0,255,136,0.2)" stroke-width="0.5"/>
+<text x="340" y="993" text-anchor="middle" font-size="11" font-weight="600" fill="#00ff88" font-family="-apple-system, sans-serif">READ ONLY</text>
+
+<!-- Arrow: X12 → Clearinghouse -->
+<line x1="1020" y1="815" x2="1020" y2="1038" stroke="rgba(255,255,255,0.2)" class="arr" marker-end="url(#ah)"/>
+<text class="label" x="1035" y="950">EDI transactions</text>
+<text class="label" x="1035" y="970">+ auth write-back</text>
+
+<!-- ═══ Metrics bar ═══ -->
+<rect x="60" y="1185" width="250" height="56" rx="8" fill="rgba(0,255,255,0.04)" stroke="rgba(0,255,255,0.12)" stroke-width="0.5"/>
+<text x="185" y="1208" text-anchor="middle" font-size="18" font-weight="700" fill="#00ffff" font-family="-apple-system, sans-serif">automated tests</text>
+<text x="185" y="1228" text-anchor="middle" font-size="12" fill="rgba(0,255,255,0.5)" font-family="-apple-system, sans-serif">85.93% coverage</text>
+
+<rect x="340" y="1185" width="250" height="56" rx="8" fill="rgba(0,255,136,0.04)" stroke="rgba(0,255,136,0.12)" stroke-width="0.5"/>
+<text x="465" y="1208" text-anchor="middle" font-size="18" font-weight="700" fill="#00ff88" font-family="-apple-system, sans-serif">36 microservices</text>
+<text x="465" y="1228" text-anchor="middle" font-size="12" fill="rgba(0,255,136,0.5)" font-family="-apple-system, sans-serif">9 engines · 6 parsers</text>
+
+<rect x="620" y="1185" width="250" height="56" rx="8" fill="rgba(0,255,255,0.04)" stroke="rgba(0,255,255,0.12)" stroke-width="0.5"/>
+<text x="745" y="1208" text-anchor="middle" font-size="18" font-weight="700" fill="#00ffff" font-family="-apple-system, sans-serif">0 dependencies</text>
+<text x="745" y="1228" text-anchor="middle" font-size="12" fill="rgba(0,255,255,0.5)" font-family="-apple-system, sans-serif">Zero third-party runtime</text>
+
+<rect x="900" y="1185" width="250" height="56" rx="8" fill="rgba(0,255,136,0.04)" stroke="rgba(0,255,136,0.12)" stroke-width="0.5"/>
+<text x="1025" y="1208" text-anchor="middle" font-size="18" font-weight="700" fill="#00ff88" font-family="-apple-system, sans-serif">&lt;1 hour deploy</text>
+<text x="1025" y="1228" text-anchor="middle" font-size="12" fill="rgba(0,255,136,0.5)" font-family="-apple-system, sans-serif">Helm + interactive wizard</text>
+
+<!-- Legend -->
+<text class="legend" x="60" y="1268">Teal = Da Vinci workflow · Purple = compliance intelligence · Blue = platform · Amber = CAPS bridge · Gray = external systems</text>
+<text class="legend" x="1130" y="1268">© 2026 Aurelianware, Inc.</text>
+
+</svg>
+
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+    <!-- ===== COMPLIANCE IN ACTION — WORK QUEUES SCREENSHOT ===== -->
+    <section id="compliance-in-action" style="
+      padding: 5rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    ">
+      <!-- Section header -->
+      <div style="text-align: center; margin-bottom: 3rem;">
+        <p style="
+          font-family: 'JetBrains Mono', 'SF Mono', monospace;
+          font-size: 0.7rem;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(0, 240, 255, 0.6);
+          margin: 0 0 0.75rem;
+        ">Compliance in Action</p>
+
+        <h2 style="
+          font-family: 'Inter', -apple-system, sans-serif;
+          font-size: clamp(1.5rem, 3vw, 2.2rem);
+          font-weight: 700;
+          color: #e5e7eb;
+          margin: 0 0 1rem;
+          line-height: 1.2;
+        ">CMS-0057-F Isn't a Feature. It's How the Platform Works.</h2>
+
+        <p style="
+          font-family: 'Inter', -apple-system, sans-serif;
+          font-size: 1rem;
+          color: rgba(255, 255, 255, 0.45);
+          max-width: 700px;
+          margin: 0 auto;
+          line-height: 1.6;
+        ">
+          Every claim that enters Cloud Health Office is automatically routed through
+          compliance-aware work queues. Prior authorization, COB coordination, provider
+          contracting, and NCCI/MUE edits aren't bolt-on modules — they're native to
+          the adjudication pipeline.
+        </p>
+      </div>
+
+      <!-- Two-column layout: screenshot + callouts -->
+      <div style="
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 2.5rem;
+        align-items: start;
+      ">
+        <!-- Screenshot with browser chrome -->
+        <div style="
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow:
+            0 0 0 1px rgba(0, 240, 255, 0.06),
+            0 20px 60px rgba(0, 0, 0, 0.5),
+            0 0 40px rgba(0, 240, 255, 0.03);
+        ">
+          <!-- Mini browser bar -->
+          <div style="
+            background: #0d1117;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          ">
+            <div style="display: flex; gap: 5px;">
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: #ff5f57;"></div>
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: #febc2e;"></div>
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: #28c840;"></div>
+            </div>
+            <div style="
+              flex: 1;
+              background: rgba(255, 255, 255, 0.04);
+              border-radius: 4px;
+              padding: 4px 10px;
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 0.6rem;
+              color: rgba(255, 255, 255, 0.3);
+            ">local-demo/operations/work-queues</div>
+          </div>
+          <img
+            src="/graphics/platform-work-queues.png"
+            alt="Cloud Health Office Claims Work Queues showing compliance-driven queue routing"
+            style="width: 100%; display: block; background: #080c14;"
+            loading="lazy"
+          />
+        </div>
+
+        <!-- Queue callouts -->
+        <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 8px;">
+
+          <div style="
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 240, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px 20px;
+          ">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="
+                width: 8px; height: 8px; border-radius: 50%;
+                background: #f87171;
+                box-shadow: 0 0 8px rgba(248, 113, 113, 0.4);
+              "></div>
+              <span style="
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #e5e7eb;
+              ">NCCI/MUE Edit Failures</span>
+            </div>
+            <p style="
+              font-family: 'Inter', sans-serif;
+              font-size: 0.8rem;
+              color: rgba(255, 255, 255, 0.4);
+              margin: 0;
+              line-height: 1.5;
+            ">
+              Claims failing National Correct Coding Initiative or Medically Unlikely Edit
+              rules are automatically flagged and routed for examiner review.
+            </p>
+          </div>
+
+          <div style="
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 240, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px 20px;
+          ">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="
+                width: 8px; height: 8px; border-radius: 50%;
+                background: #fbbf24;
+                box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+              "></div>
+              <span style="
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #e5e7eb;
+              ">Missing Prior Authorization</span>
+            </div>
+            <p style="
+              font-family: 'Inter', sans-serif;
+              font-size: 0.8rem;
+              color: rgba(255, 255, 255, 0.4);
+              margin: 0;
+              line-height: 1.5;
+            ">
+              CMS-0057-F requires prior auth decisioning with rationale. Claims requiring
+              authorization that lack an auth on file are pended — not denied — per
+              the PriorAuthDecisionEngine's configured pathways.
+            </p>
+          </div>
+
+          <div style="
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 240, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px 20px;
+          ">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="
+                width: 8px; height: 8px; border-radius: 50%;
+                background: #00f0ff;
+                box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+              "></div>
+              <span style="
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #e5e7eb;
+              ">COB / Other Payer</span>
+            </div>
+            <p style="
+              font-family: 'Inter', sans-serif;
+              font-size: 0.8rem;
+              color: rgba(255, 255, 255, 0.4);
+              margin: 0;
+              line-height: 1.5;
+            ">
+              Coordination of benefits claims with primary, secondary, or tertiary payer
+              involvement. Birthday rule, gender rule, and Medicare secondary payer
+              logic handled natively.
+            </p>
+          </div>
+
+          <div style="
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 240, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px 20px;
+          ">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="
+                width: 8px; height: 8px; border-radius: 50%;
+                background: #a78bfa;
+                box-shadow: 0 0 8px rgba(167, 139, 250, 0.4);
+              "></div>
+              <span style="
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #e5e7eb;
+              ">Provider Not Contracted</span>
+            </div>
+            <p style="
+              font-family: 'Inter', sans-serif;
+              font-size: 0.8rem;
+              color: rgba(255, 255, 255, 0.4);
+              margin: 0;
+              line-height: 1.5;
+            ">
+              Claims from providers without active contracts are flagged via the
+              ProviderVerificationService — checking NPPES, OIG/LEIE, SAM.gov,
+              PECOS, and CMS Open Payments for a composite integrity score.
+            </p>
+          </div>
+
+          <div style="
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 240, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px 20px;
+          ">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="
+                width: 8px; height: 8px; border-radius: 50%;
+                background: #34d399;
+                box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+              "></div>
+              <span style="
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #e5e7eb;
+              ">Medical Review</span>
+            </div>
+            <p style="
+              font-family: 'Inter', sans-serif;
+              font-size: 0.8rem;
+              color: rgba(255, 255, 255, 0.4);
+              margin: 0;
+              line-height: 1.5;
+            ">
+              Claims exceeding charge thresholds, unusual procedure combinations,
+              or requiring clinical documentation are routed for medical director
+              review with full audit trail.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Responsive fallback for mobile: stack the grid -->
+      <style>
+        @media (max-width: 900px) {
+          #compliance-in-action > div:last-of-type {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        @media (max-width: 768px) {
+          #compliance-in-action {
+            padding: 3rem 1rem !important;
+          }
+          #compliance-in-action > div:last-of-type {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      </style>
+    </section>
+
+    <div class="divider"></div>
+
+<!-- ═══════════════ X12 ↔ FHIR TRANSFORMATION ═══════════════ -->
+
+<section id="x12-fhir" data-reveal>
+  <div class="container">
+    <div class="section-label">EDI Transformation</div>
+    <h2 class="section-title">X12 EDI ↔ FHIR R4 — Bidirectional Implementation Evidence</h2>
+    <p class="section-desc">X12 transactions from the core admin system can be transformed to FHIR R4 resources conforming to Da Vinci profiles through configurable, auditable mapping pipelines.</p>
+
+<!-- X12-FHIR Flow SVG -->
+<div class="flow-diagram" data-reveal>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 260" width="960" height="260" role="img" aria-label="X12 EDI to FHIR R4 transformation flow diagram">
+    <defs>
+      <marker id="fh" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#00ffff" opacity=".6"/></marker>
+      <filter id="fg"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="960" height="260" fill="#080808" rx="8"/>
+
+    <!-- X12 Column -->
+    <text x="120" y="28" font-family="JetBrains Mono,monospace" font-size="9" font-weight="600" fill="#606060" text-anchor="middle" letter-spacing="2">X12 EDI</text>
+    <g transform="translate(120,55)"><rect x="-85" y="-14" width="170" height="28" rx="4" fill="rgba(0,255,255,.05)" stroke="rgba(0,255,255,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ffff" text-anchor="middle">270 Eligibility</text></g>
+    <g transform="translate(120,95)"><rect x="-85" y="-14" width="170" height="28" rx="4" fill="rgba(0,255,255,.05)" stroke="rgba(0,255,255,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ffff" text-anchor="middle">837 Claims</text></g>
+    <g transform="translate(120,135)"><rect x="-85" y="-14" width="170" height="28" rx="4" fill="rgba(0,255,255,.05)" stroke="rgba(0,255,255,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ffff" text-anchor="middle">278 Prior Auth</text></g>
+    <g transform="translate(120,175)"><rect x="-85" y="-14" width="170" height="28" rx="4" fill="rgba(0,255,255,.05)" stroke="rgba(0,255,255,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ffff" text-anchor="middle">835 Remittance</text></g>
+    <g transform="translate(120,215)"><rect x="-85" y="-14" width="170" height="28" rx="4" fill="rgba(0,255,255,.05)" stroke="rgba(0,255,255,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ffff" text-anchor="middle">275 Attachments</text></g>
+
+    <!-- Arrows -->
+    <line x1="210" y1="55" x2="370" y2="55" stroke="#00ffff" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="210" y1="95" x2="370" y2="95" stroke="#00ffff" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="210" y1="135" x2="370" y2="135" stroke="#00ffff" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="210" y1="175" x2="370" y2="175" stroke="#00ffff" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="210" y1="215" x2="370" y2="215" stroke="#00ffff" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+
+    <!-- CHO Mapper Column -->
+    <text x="480" y="28" font-family="JetBrains Mono,monospace" font-size="9" font-weight="600" fill="#606060" text-anchor="middle" letter-spacing="2">CHO FHIR MAPPER</text>
+    <rect x="380" y="38" width="200" height="204" rx="6" fill="rgba(0,255,255,.02)" stroke="rgba(0,255,255,.08)" stroke-dasharray="4,4"/>
+    <text x="480" y="76" font-family="JetBrains Mono,monospace" font-size="9" fill="#00ffff" text-anchor="middle" filter="url(#fg)">mapX12270ToFhir</text>
+    <text x="480" y="110" font-family="JetBrains Mono,monospace" font-size="9" fill="#00ffff" text-anchor="middle" filter="url(#fg)">mapX12837ToFhirClaim</text>
+    <text x="480" y="144" font-family="JetBrains Mono,monospace" font-size="9" fill="#00ffff" text-anchor="middle" filter="url(#fg)">mapX12278ToFhirPriorAuth</text>
+    <text x="480" y="178" font-family="JetBrains Mono,monospace" font-size="9" fill="#00ffff" text-anchor="middle" filter="url(#fg)">mapX12835ToFhirEOB</text>
+    <text x="480" y="212" font-family="JetBrains Mono,monospace" font-size="9" fill="#00ffff" text-anchor="middle" filter="url(#fg)">ingest275Workflow</text>
+
+    <!-- Arrows to FHIR -->
+    <line x1="585" y1="55" x2="740" y2="55" stroke="#00ff88" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="585" y1="95" x2="740" y2="95" stroke="#00ff88" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="585" y1="135" x2="740" y2="135" stroke="#00ff88" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="585" y1="175" x2="740" y2="175" stroke="#00ff88" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+    <line x1="585" y1="215" x2="740" y2="215" stroke="#00ff88" stroke-width="1.5" opacity=".3" marker-end="url(#fh)"/>
+
+    <!-- FHIR Column -->
+    <text x="845" y="28" font-family="JetBrains Mono,monospace" font-size="9" font-weight="600" fill="#606060" text-anchor="middle" letter-spacing="2">FHIR R4 / DA VINCI</text>
+    <g transform="translate(845,55)"><rect x="-95" y="-14" width="190" height="28" rx="4" fill="rgba(0,255,136,.05)" stroke="rgba(0,255,136,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ff88" text-anchor="middle">Patient + Coverage</text></g>
+    <g transform="translate(845,95)"><rect x="-95" y="-14" width="190" height="28" rx="4" fill="rgba(0,255,136,.05)" stroke="rgba(0,255,136,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ff88" text-anchor="middle">Claim (PDex)</text></g>
+    <g transform="translate(845,135)"><rect x="-95" y="-14" width="190" height="28" rx="4" fill="rgba(0,255,136,.05)" stroke="rgba(0,255,136,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ff88" text-anchor="middle">ServiceRequest (PAS)</text></g>
+    <g transform="translate(845,175)"><rect x="-95" y="-14" width="190" height="28" rx="4" fill="rgba(0,255,136,.05)" stroke="rgba(0,255,136,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ff88" text-anchor="middle">ExplanationOfBenefit</text></g>
+    <g transform="translate(845,215)"><rect x="-95" y="-14" width="190" height="28" rx="4" fill="rgba(0,255,136,.05)" stroke="rgba(0,255,136,.2)"/><text x="0" y="4" font-family="JetBrains Mono,monospace" font-size="10" fill="#00ff88" text-anchor="middle">DocumentReference</text></g>
+  </svg>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ TERMINOLOGY TRANSLATION ═══════════════ -->
+
+<section id="terminology" data-reveal>
+  <div class="container">
+    <div class="section-label">Terminology Translation</div>
+    <h2 class="section-title">SNOMED CT ↔ CPT/ICD — The Gap No One Else Solves</h2>
+    <p class="section-desc">Da Vinci workflows (CRD, DTR, PAS) exchange clinical data in SNOMED CT. Your CAPS adjudicates in CPT and ICD-10-CM. Without built-in translation, prior auth requests cannot be matched to benefit configuration. Most implementations treat this as "customer responsibility." CHO solves it natively.</p>
+
+<div class="api-grid">
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">FHIR R4 ConceptMap</span>
+    <h3>ConceptMap/$translate API</h3>
+    <p>FHIR-native terminology translation with ~119,000 NLM/UMLS mappings, AMA CPT cross maps (BYOL), and tenant-scoped plan-specific overrides. Single-code and $batch-translate endpoints for real-time and bulk use.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">Context-Aware</span>
+    <h3>Disambiguation Engine</h3>
+    <p>When SNOMED maps to multiple ICD-10-CM codes, the context rule engine uses patient age, gender, state, co-morbidities, and plan coding policy to select the best match — not just the first match.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">CRD + PAS + DTR</span>
+    <h3>Da Vinci Integration</h3>
+    <p>The CRD server, PAS server, and DTR engine consume the crosswalk at runtime. SNOMED codes from EHRs are translated to payer code space for coverage rules, prior auth decisions, and questionnaire pre-population.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">Multi-Tier Maps</span>
+    <h3>Map Management</h3>
+    <p>Auto-loading at startup, runtime upload via Admin API, SHA-256 version tracking, and full audit trail. Plan-specific overrides support Texas TMPPM, state Medicaid variations, and custom coding policy per tenant.</p>
+  </article>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ PROVIDER VERIFICATION ═══════════════ -->
+
+<section id="provider-verification" data-reveal>
+  <div class="container">
+    <div class="section-label">Provider Data Integrity</div>
+    <h2 class="section-title">Multi-Source Provider Verification</h2>
+    <p class="section-desc">Provider Access API and Prior Authorization require verified, current provider records. CHO aggregates five federal and state data sources into a composite Provider Integrity Score (0–100) per NPI — blocking excluded providers automatically.</p>
+
+<div class="api-grid">
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">NPPES</span>
+    <h3>NPI Registry Validation</h3>
+    <p>NPI validity, practice address, taxonomy code, and enumeration status verified against the National Plan and Provider Enumeration System. Daily update cadence.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">OIG / LEIE</span>
+    <h3>Federal Exclusion Screening</h3>
+    <p>Automatic screening against the OIG List of Excluded Individuals/Entities. Excluded providers are blocked from authorization and claims processing. Monthly sync.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">PECOS + FSMB</span>
+    <h3>Enrollment &amp; Licensing</h3>
+    <p>Medicare enrollment verification via PECOS and active medical license confirmation via FSMB state licensing data. Disciplinary actions and multi-state compact status tracked.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">Integrity Score</span>
+    <h3>Composite 0–100 Score</h3>
+    <p>Weighted algorithm across all five sources produces a single integrity score per NPI. Configurable thresholds, automatic blocking, and audit-logged verification results for compliance documentation.</p>
+  </article>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ COMPLIANCE STATUS ═══════════════ -->
+
+<section id="compliance" data-reveal>
+  <div class="container">
+    <div class="section-label">Compliance Status</div>
+    <h2 class="section-title">CMS-0057-F Coverage</h2>
+    <p class="section-desc">Coverage for the required FHIR and prior authorization surfaces, validated through automated tests and implementation artifacts rather than brittle release-count claims.</p>
+
+<table class="compliance-table" data-reveal>
+  <thead>
+    <tr>
+      <th>Requirement</th>
+      <th>Da Vinci Profile</th>
+      <th>Tests</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Patient Access API</td><td>PDex Patient / Coverage / Claim / EOB</td><td>19</td><td><span class="status-badge done">Implemented</span></td></tr>
+    <tr><td>Provider Access API</td><td>PDex + PAS ServiceRequest / DocumentRef</td><td>8</td><td><span class="status-badge done">Implemented</span></td></tr>
+    <tr><td>Payer-to-Payer API</td><td>Bulk FHIR $export / Enrollment Trigger</td><td>6</td><td><span class="status-badge done">Implemented</span></td></tr>
+    <tr><td>Prior Authorization API</td><td>Da Vinci PAS 2.0.1+</td><td>12</td><td><span class="status-badge done">Implemented</span></td></tr>
+    <tr><td>72-Hour Urgent Response</td><td>Compliance Checker — automated tracking</td><td>Auto</td><td><span class="status-badge done">✅ Automated</span></td></tr>
+    <tr><td>7-Day Standard Response</td><td>Compliance Checker — automated tracking</td><td>Auto</td><td><span class="status-badge done">✅ Automated</span></td></tr>
+    <tr><td>USCDI v1 / v2 Coverage</td><td>US Core 3.1.1+ data class mapping</td><td>Mapped</td><td><span class="status-badge done">✅ Complete</span></td></tr>
+    <tr><td>X12 270 → FHIR</td><td>Patient + CoverageEligibilityRequest</td><td>—</td><td><span class="status-badge prod">Implemented</span></td></tr>
+    <tr><td>X12 837 → FHIR</td><td>Da Vinci PDex Claim</td><td>—</td><td><span class="status-badge prod">Implemented</span></td></tr>
+    <tr><td>X12 278 → FHIR</td><td>Da Vinci PAS ServiceRequest</td><td>—</td><td><span class="status-badge prod">Implemented</span></td></tr>
+    <tr><td>X12 835 → FHIR</td><td>Da Vinci PDex EOB</td><td>—</td><td><span class="status-badge prod">Mapped</span></td></tr>
+    <tr><td>X12 275 → FHIR</td><td>US Core DocumentReference</td><td>—</td><td><span class="status-badge prod">Implemented</span></td></tr>
+    <tr><td>OAuth 2.0 / SMART on FHIR</td><td>Azure AD + SMART scopes</td><td>—</td><td><span class="status-badge done">Implemented</span></td></tr>
+    <tr><td>HIPAA Security Controls</td><td>TLS 1.2+ / AES-256 / Key Vault / BAA</td><td>—</td><td><span class="status-badge done">Validate per deployment</span></td></tr>
+    <tr><td>Terminology Translation (SNOMED ↔ CPT/ICD)</td><td>FHIR R4 ConceptMap/$translate</td><td>—</td><td><span class="status-badge done">Implemented</span></td></tr>
+    <tr><td>Provider Verification &amp; Directory</td><td>NPPES / OIG / PECOS / FSMB Integrity Score</td><td>—</td><td><span class="status-badge done">Implemented</span></td></tr>
+  </tbody>
+</table>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ MCC PROOF ═══════════════ -->
+
+<section id="mcc-proof" data-reveal>
+  <div class="container">
+    <div class="section-label">Evidence</div>
+    <h2 class="section-title">Proof: The Million Claim Challenge</h2>
+    <p class="section-desc">The Million Claim Challenge is not just a load test — it is an evidence system for claims correctness and platform behavior under volume. It exercises the same adjudication pipeline that backs the CMS-0057-F surfaces and captures run history, workflow checks, unsupported scenarios, mismatches, and payment delta, so benchmark claims can be inspected rather than merely reported. The point is verifiable behavior, not a throughput headline.</p>
+
+    <div class="api-card" style="border-color:var(--border-bright)">
+      <p style="font-size:.85rem;color:var(--text-muted);line-height:1.8;margin:0 0 1rem">
+        Read the benchmark write-up and inspect the evidence:
+        <a href="/docs/million-claim-challenge" style="color:var(--cyan);text-decoration:none">Million Claim Challenge — Open Claims Adjudication Benchmark →</a>.
+        The run-level evidence surface is the <strong>Mass Adjudication console</strong> inside the portal, which exposes run history, claims/sec, latency, workflow checks, unsupported scenarios, mismatches, payment delta, and claim-level drilldown.
+      </p>
+      <p style="font-size:.78rem;color:var(--text-dim);line-height:1.7;border-top:1px solid var(--border);padding-top:1rem;margin:0">
+        <strong style="color:var(--text-muted)">Scope &amp; caveats:</strong> These are local Kubernetes measurements, not production-cloud capacity claims. Part 15 is the latest strict zero-platform-failure one-million-claim result, with 20,000/20,000 sampled payment checks exact within one cent. Part 16 reached 155.89 claims/sec through asynchronous Service Bus adjudication and all 1,000,000 claims eventually became terminal; 122 claims exceeded the validator's 180-second observation window, leaving 20 workflow checks and 18 payment comparisons unreconciled inside that run.
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ TIMELINE ═══════════════ -->
+
+<section id="timeline" data-reveal>
+  <div class="container">
+    <div class="section-label">Implementation Timeline</div>
+    <h2 class="section-title">Implementation Timeline</h2>
+    <p class="section-desc">The CMS deadline is January 2027. The practical path is to stand up the compliance surface first, validate integrations, then expand modernization scope deliberately.</p>
+
+<div class="timeline" data-reveal>
+  <div class="timeline-track"></div>
+
+  <div class="timeline-item">
+    <div class="timeline-dot active"></div>
+    <div class="timeline-date">July 2026 — You are here · ~6 months to deadline</div>
+    <div class="timeline-title">Stand Up the Compliance Surface</div>
+    <div class="timeline-desc">Deploy CHO alongside your core admin system. Configure Azure AD OAuth 2.0, bring up the Patient Access, Provider Access, Payer-to-Payer, and Prior Authorization API surfaces, and validate them against the relevant Da Vinci profiles with the compliance checker.</div>
+  </div>
+
+  <div class="timeline-item">
+    <div class="timeline-dot active green"></div>
+    <div class="timeline-date">Next — Integration &amp; Platform Engagement</div>
+    <div class="timeline-title">Integrate, Harden, and Operationalize</div>
+    <div class="timeline-desc">Integrate with existing auth/claims systems and clearinghouse partners. Deploy the operational workflows — RBAC, work queues, appeals, enrollment, benefit configuration, and auditability — then complete load testing, security review, and compliance audit documentation.</div>
+  </div>
+
+  <div class="timeline-item">
+    <div class="timeline-dot" style="border-color:#ff4444"></div>
+    <div class="timeline-date" style="color:#ff4444">January 1, 2027 — CMS Deadline</div>
+    <div class="timeline-title">CMS-0057-F Enforcement Begins</div>
+    <div class="timeline-desc">All impacted payers must be operational. Medicare Advantage, Medicaid managed care, CHIP, and QHP issuers on federal Marketplaces.</div>
+  </div>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ DA VINCI IGs ═══════════════ -->
+
+<section id="davinci" data-reveal>
+  <div class="container">
+    <div class="section-label">Implementation Guides</div>
+    <h2 class="section-title">Da Vinci IG Conformance</h2>
+    <p class="section-desc">Cloud Health Office validates against all required HL7 Da Vinci Implementation Guides for CMS-0057-F compliance.</p>
+
+<div class="api-grid">
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">Da Vinci PDex 2.0+</span>
+    <h3>Payer Data Exchange</h3>
+    <p>Standardized FHIR profiles for payer-sourced data. US Core Patient v3.1.1+, PDex Claim, ExplanationOfBenefit, Coverage. Complete USCDI v1 &amp; v2 data classes.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">Da Vinci PAS 2.0.1+</span>
+    <h3>Prior Authorization Support</h3>
+    <p>ServiceRequest for authorization requests. ClaimResponse for decisions. DocumentReference for attachments. 72-hour urgent and 7-day standard timeline compliance.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">Da Vinci CRD 2.0+</span>
+    <h3>Coverage Requirements Discovery</h3>
+    <p>Real-time coverage rules discovery. Documentation requirements identification during provider workflow. CDS Hooks integration pathway.</p>
+  </article>
+  <article class="api-card">
+    <span class="status">Implemented</span>
+    <span class="api-tag">Da Vinci DTR 2.0+</span>
+    <h3>Documentation Templates &amp; Rules</h3>
+    <p>FHIR Questionnaire and QuestionnaireResponse. Automated clinical documentation collection from payer rules. Reduced provider administrative burden.</p>
+  </article>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ WHO MUST COMPLY ═══════════════ -->
+
+<section id="who" data-reveal>
+  <div class="container">
+    <div class="section-label">Applicability</div>
+    <h2 class="section-title">Who Must Comply with CMS-0057-F?</h2>
+    <p class="section-desc">If you're a regulated payer, you're in scope. Cloud Health Office serves every payer type impacted by the rule.</p>
+
+<div class="api-grid">
+  <article class="api-card">
+    <h3>Medicare Advantage (MA)</h3>
+    <p>All MA organizations must implement Patient Access, Provider Access, Prior Auth, and Payer-to-Payer APIs by January 1, 2027.</p>
+  </article>
+  <article class="api-card">
+    <h3>Medicaid Managed Care</h3>
+    <p>Medicaid managed care plans and FFS programs require full FHIR R4 API implementation with USCDI data class coverage.</p>
+  </article>
+  <article class="api-card">
+    <h3>CHIP Programs</h3>
+    <p>Both CHIP FFS and CHIP managed care entities are subject to all four API requirements with identical compliance deadlines.</p>
+  </article>
+  <article class="api-card">
+    <h3>QHP Issuers (Marketplace)</h3>
+    <p>Qualified Health Plans on federal Marketplaces must implement all required APIs. State-based marketplace issuers should monitor state adoption.</p>
+  </article>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ PAYER COMPLIANCE CHECKLIST ═══════════════ -->
+
+<section id="checklist" data-reveal>
+  <div class="container">
+    <div class="section-label">Implementation Checklist</div>
+    <h2 class="section-title">Payer Compliance Checklist</h2>
+    <p class="section-desc">A comprehensive readiness checklist for health plans implementing CMS-0057-F with Cloud Health Office.</p>
+
+<div class="checklist" data-reveal>
+  <div class="checklist-group">
+    <h4>Pre-Implementation</h4>
+    <div class="checklist-item">Identify applicable requirements by payer type (MA, Medicaid, CHIP, QHP)</div>
+    <div class="checklist-item">Assess current systems for FHIR readiness and X12 integration</div>
+    <div class="checklist-item">Allocate budget, personnel, and timeline</div>
+    <div class="checklist-item">Select FHIR server (Azure Health Data Services recommended)</div>
+    <div class="checklist-item">Establish Azure / cloud environment</div>
+  </div>
+
+  <div class="checklist-group">
+    <h4>Technical Deployment</h4>
+    <div class="checklist-item">Deploy Cloud Health Office via Helm or Azure Logic Apps</div>
+    <div class="checklist-item">Configure OAuth 2.0 with Azure AD</div>
+    <div class="checklist-item">Set up X12 integration with clearinghouse partners</div>
+    <div class="checklist-item">Deploy FHIR endpoints for all four required APIs</div>
+    <div class="checklist-item">Configure response timelines (72hr urgent, 7-day standard)</div>
+    <div class="checklist-item">Enable compliance validation with compliance-checker</div>
+  </div>
+
+  <div class="checklist-group">
+    <h4>Data &amp; Integration</h4>
+    <div class="checklist-item">Map data sources (claims, auth, clinical) to FHIR resources</div>
+    <div class="checklist-item">Validate USCDI v1/v2 coverage</div>
+    <div class="checklist-item">Populate 5-year historical data for payer-to-payer</div>
+    <div class="checklist-item">Implement decision rationale for prior auth denials</div>
+    <div class="checklist-item">Add clinical guidelines references</div>
+  </div>
+
+  <div class="checklist-group">
+    <h4>Security &amp; Compliance</h4>
+    <div class="checklist-item">HIPAA compliance (PHI encryption, audit logging)</div>
+    <div class="checklist-item">OAuth 2.0 security (patient consent, provider auth)</div>
+    <div class="checklist-item">Penetration testing and security audit</div>
+    <div class="checklist-item">Disaster recovery and backup strategies</div>
+    <div class="checklist-item">Data retention policies (7-year minimum)</div>
+  </div>
+
+  <div class="checklist-group">
+    <h4>Testing &amp; Validation</h4>
+    <div class="checklist-item">Unit testing for FHIR transformations</div>
+    <div class="checklist-item">Integration testing end-to-end workflows</div>
+    <div class="checklist-item">Load testing for deployment-specific scalability</div>
+    <div class="checklist-item">Provider and patient UAT</div>
+  </div>
+
+  <div class="checklist-group">
+    <h4>Provider &amp; Patient Enablement</h4>
+    <div class="checklist-item">Provider onboarding documentation</div>
+    <div class="checklist-item">API docs (Swagger/OpenAPI)</div>
+    <div class="checklist-item">Developer portal for third-party apps</div>
+    <div class="checklist-item">CMS attestation and audit trail</div>
+  </div>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ PRICING ═══════════════ -->
+
+<section id="pricing" data-reveal>
+  <div class="container">
+    <div class="section-label">Pricing</div>
+    <h2 class="section-title">PMPM Pricing</h2>
+    <p class="section-desc">CMS-0057-F compliance is delivered through Platform Engagement &mdash; payer-scale relationships priced per member per month (PMPM) across three layers: Layer 1 &mdash; Compliance Accelerator, Layer 2 &mdash; Progressive Modernization, and Layer 3 &mdash; Full CAPS Platform. Pilot-scoped terms; founding-partner relationships in each layer.</p>
+    <p class="section-desc"><a href="/pricing" class="btn btn-primary">See full pricing across all four product lines &rarr;</a></p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ QUICK START ═══════════════ -->
+
+<section id="quickstart" data-reveal>
+  <div class="container">
+    <div class="section-label">Quick Start</div>
+    <h2 class="section-title">Deploy in Under an Hour</h2>
+    <p class="section-desc">Clone, build, validate, deploy. Use the source-available implementation to evaluate the CMS-0057-F compliance surface before a payer-specific rollout.</p>
+
+<div class="flow-diagram" style="font-family:var(--mono);font-size:.82rem;line-height:2;color:var(--text-muted)">
+  <span style="color:var(--text-dim)"># Clone and build</span><br/>
+  <span style="color:var(--green)">$</span> git clone https://github.com/aurelianware/cloudhealthoffice.git<br/>
+  <span style="color:var(--green)">$</span> cd cloudhealthoffice && npm install && npm run build<br/><br/>
+  <span style="color:var(--text-dim)"># Run FHIR compliance tests</span><br/>
+  <span style="color:var(--green)">$</span> npm run test:fhir<br/><br/>
+  <span style="color:var(--text-dim)"># Deploy with interactive wizard</span><br/>
+  <span style="color:var(--green)">$</span> npm run generate -- interactive --output config.json --generate<br/><br/>
+  <span style="color:var(--text-dim)"># Validate CMS-0057-F compliance</span><br/>
+  <span style="color:var(--green)">$</span> node dist/src/fhir/examples.js<br/><br/>
+  <span style="color:var(--cyan)">✓ FHIR endpoints validated for CMS-0057-F readiness.</span>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ RESOURCES ═══════════════ -->
+
+<section id="resources" data-reveal>
+  <div class="container">
+    <div class="section-label">Resources &amp; References</div>
+    <h2 class="section-title">Standards, Specifications, and Documentation</h2>
+    <p class="section-desc">Everything you need to understand CMS-0057-F requirements and Cloud Health Office implementation.</p>
+
+<div class="api-grid">
+  <article class="api-card">
+    <span class="api-tag">CMS Regulations</span>
+    <h3>CMS-0057-F Final Rule</h3>
+    <p>Federal Register publication, CMS prior authorization overview, and the CMS interoperability roadmap for impacted payers.</p>
+  </article>
+  <article class="api-card">
+    <span class="api-tag">HL7 FHIR</span>
+    <h3>FHIR R4 + US Core</h3>
+    <p>FHIR R4 v4.0.1 specification, US Core IG v3.1.1+, USCDI v2 data class definitions from ONC.</p>
+  </article>
+  <article class="api-card">
+    <span class="api-tag">Da Vinci Project</span>
+    <h3>Da Vinci Implementation Guides</h3>
+    <p>PDex, PAS, CRD, DTR, and CDex implementation guides from the HL7 Da Vinci Project.</p>
+  </article>
+  <article class="api-card">
+    <span class="api-tag">Cloud Health Office</span>
+    <h3>CHO Documentation</h3>
+    <p>FHIR Integration Guide, Security Hardening, HIPAA Compliance Matrix, Deployment Guide, and Config-to-Workflow Generator docs.</p>
+  </article>
+</div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════════ CTA ═══════════════ -->
+
+<section class="cta-section">
+  <div class="container">
+    <div class="section-label">Get Started</div>
+    <h2>The deadline is January 2027.<br/>The compliance path can start now.</h2>
+    <p>Medicaid MCOs, Medicare Advantage, and commercial payers. Deployment in weeks, not months.</p>
+    <div class="hero-actions">
+      <a href="/contact" class="btn btn-primary">Contact Sales →</a>
+      <a href="https://github.com/aurelianware/cloudhealthoffice" class="btn btn-ghost">View Source</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+
+<footer>
+  <p>&copy; 2026 Cloud Health Office — <a href="https://github.com/aurelianware">Aurelianware, Inc.</a> &nbsp;·&nbsp; Source-available platform (BSL 1.1) &nbsp;·&nbsp; Free for non-production use &nbsp;·&nbsp; <a href="mailto:licensing@cloudhealthoffice.com" style="color:rgba(0,255,255,0.6);">Commercial licensing</a></p>
+  <p style="margin-top:.4rem"><a href="https://cloudhealthoffice.com/pricing">Pricing</a> &nbsp;·&nbsp; <a href="https://cloudhealthoffice.com/platform">Platform</a> &nbsp;·&nbsp; <a href="https://cloudhealthoffice.com/trust">Trust</a> &nbsp;·&nbsp; <a href="https://cloudhealthoffice.com/docs">Docs</a> &nbsp;·&nbsp; <a href="mailto:sales@cloudhealthoffice.com">sales@cloudhealthoffice.com</a></p>
+    <p style="margin-top:18px;"><a href="/founder">Meet the founder &rarr;</a></p>
+  </footer>
+
+<!-- ═══════════════ SCROLL REVEAL ═══════════════ -->
+
+<script>
+  document.addEventListener('DOMContentLoaded',()=>{
+    const io=new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target)}})
+    },{threshold:0.08});
+    document.querySelectorAll('[data-reveal]').forEach(el=>io.observe(el));
+  });
+</script>
+
+</body>
+</html>

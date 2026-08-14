@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eligibility-service-config
+  namespace: cloudhealthoffice
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  MongoDb__DatabaseName: "cloudhealthoffice"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eligibility-service
+  namespace: cloudhealthoffice
+  labels:
+    app: eligibility-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eligibility-service
+  template:
+    metadata:
+      labels:
+        app: eligibility-service
+        tier: backend
+    spec:
+      containers:
+      - name: eligibility-service
+        image: clouhealthoffice.azurecr.io/cloudhealthoffice-eligibility-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: eligibility-service-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: MongoDb__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: connectionString
+        - name: MongoDb__DatabaseName
+          valueFrom:
+            configMapKeyRef:
+              name: eligibility-service-config
+              key: MongoDb__DatabaseName
+        # Mongo is checked first (see BatchEligibilityServiceCollectionExtensions) --
+        # reuses the same database-secret every other Mongo-backed service in this
+        # fleet already points at, so BatchEligibility needs no Azure-specific
+        # resource of its own. BatchEligibility__CosmosDb__ConnectionString below
+        # stays wired as a fallback for environments that deliberately run Cosmos
+        # DB for NoSQL instead.
+        - name: BatchEligibility__MongoDb__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: connectionString
+        - name: BatchEligibility__CosmosDb__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: batch-eligibility-secret
+              key: cosmosConnectionString
+        - name: BatchEligibility__BlobStorage__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: azure-storage-secret
+              key: connectionString
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eligibility-service
+  namespace: cloudhealthoffice
+  labels:
+    app: eligibility-service
+spec:
+  type: ClusterIP
+  selector:
+    app: eligibility-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP

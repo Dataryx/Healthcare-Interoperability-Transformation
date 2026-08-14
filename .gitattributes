@@ -1,0 +1,23 @@
+# normalize
+* text=auto
+
+# YAML / Actions
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Bicep / JSON / Docs
+*.bicep text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+
+# Scripts
+*.ps1   text eol=crlf
+*.sh    text eol=lf
+
+# Binary
+*.zip   -text
+*.png   -text
+*.jpg   -text
+*.jpeg  -text
+*.gif   -text

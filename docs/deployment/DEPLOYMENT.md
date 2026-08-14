@@ -1,0 +1,3110 @@
+# Deployment Guide - Cloud Health Office
+
+This guide provides step-by-step instructions for deploying the Cloud Health Office source-available platform into a customer-controlled environment.
+
+> **Current availability:** Cloud Health Office is not operated as a public hosted SaaS at `portal.cloudhealthoffice.com` or `api.cloudhealthoffice.com`. Download the source, run it locally, or deploy it into your own Azure/Kubernetes environment under the Business Source License (BSL 1.1). Public production use requires a commercial license.
+
+## 🚀 Quick Start
+
+**New users?** Start here:
+
+### Option 1: Local Kubernetes Evaluation (Recommended)
+
+The fastest way to evaluate the platform is to run it on Docker Desktop Kubernetes:
+
+```bash
+git clone https://github.com/aurelianware/cloudhealthoffice.git
+cd cloudhealthoffice
+./scripts/deploy-local.sh
+```
+
+Then follow the local access steps in [QUICKSTART.md](../guides/QUICKSTART.md) or the Kubernetes reference in [quickstart-kubernetes-local.md](../quickstart-kubernetes-local.md).
+
+**What gets created locally:**
+- Kubernetes namespace and service DNS for the platform
+- MongoDB and Redis local services
+- Portal and API services reachable through port-forwarding
+- Demo/reference data for local validation
+- A customer-owned path to connect Azure AD, Stripe, Service Bus, and clearinghouse credentials later
+
+For pilot scoping, commercial licensing, or a customer-owned deployment review, contact [sales@cloudhealthoffice.com](mailto:sales@cloudhealthoffice.com).
+
+---
+
+### Option 2: Customer-Owned Cloud Deployment (Advanced)
+
+For customers requiring an Azure-hosted or private Kubernetes deployment:
+
+**New to deployment?** Follow these steps:
+1. **GitHub Actions Setup**: See [GITHUB-ACTIONS-SETUP.md](GITHUB-ACTIONS-SETUP.md) for complete OIDC authentication and secrets configuration
+2. **Secrets & Environment Configuration**: See [DEPLOYMENT-SECRETS-SETUP.md](DEPLOYMENT-SECRETS-SETUP.md) for detailed secrets setup and validation
+3. **Validate Prerequisites**: Ensure all tools are installed (see [Prerequisites](#prerequisites))
+4. **Follow Environment Deployment**: Choose your target environment (DEV/UAT/PROD)
+5. **Run Post-Deployment Steps**: Configure Kubernetes secrets/ConfigMaps and deploy Argo Workflows
+
+## Table of Contents
+- [Prerequisites](#prerequisites)
+- [GitHub Configuration](#github-configuration)
+- [Bicep Compilation and ARM Deployment](#bicep-compilation-and-arm-deployment)
+- [Environment Protection Rules and Approval Gates](#environment-protection-rules-and-approval-gates)
+- [Pre-Deployment Validation](#pre-deployment-validation)
+- [Environment Deployment](#environment-deployment)
+- [Argo Workflow Deployment](#argo-workflow-deployment)
+- [Post-Deployment Configuration](#post-deployment-configuration)
+- [Verification and Testing](#verification-and-testing)
+- [Rollback Procedures](#rollback-procedures)
+- [Troubleshooting](#troubleshooting)
+
+## Prerequisites
+
+### Required Tools
+
+Ensure all required tools are installed and properly configured:
+
+```bash
+# Verify Azure CLI (minimum 2.77.0)
+az --version
+
+# Verify Bicep CLI (minimum 0.37.0)
+az bicep version
+
+# Verify PowerShell (minimum 7.4)
+pwsh --version
+
+# Verify jq (minimum 1.7)
+jq --version
+
+# Verify zip utility
+which zip
+```
+
+**If any tool is missing, see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for installation instructions.**
+
+### Azure Prerequisites
+
+#### Subscription Access
+- [ ] Azure subscription with Contributor role or higher
+- [ ] Access to create resource groups
+- [ ] Permission to create managed identities
+- [ ] Access to configure RBAC role assignments
+
+#### Service Principals / OIDC Setup
+
+For GitHub Actions deployment, you need OIDC federated credentials configured:
+
+1. **Create Azure AD Application** (one per environment)
+2. **Configure Federated Credentials** for GitHub
+3. **Assign Contributor Role** to subscription or resource group
+4. **Gather Required IDs:**
+   - Application (Client) ID
+   - Tenant ID
+   - Subscription ID
+
+**Create OIDC Application (Azure CLI):**
+```bash
+# Set variables
+ENV="dev"  # or uat, prod
+APP_NAME="hipaa-attachments-$ENV-github"
+REPO_OWNER="aurelianware"
+REPO_NAME="hipaa-attachments"
+SUBSCRIPTION_ID="<your-subscription-id>"
+
+# Create Azure AD application
+az ad app create --display-name "$APP_NAME"
+
+# Get application ID
+APP_ID=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv)
+
+# Create service principal
+az ad sp create --id "$APP_ID"
+
+# Get object ID
+SP_OBJECT_ID=$(az ad sp show --id "$APP_ID" --query "id" -o tsv)
+
+# Create federated credential for main branch (adjust for environment)
+az ad app federated-credential create \
+  --id "$APP_ID" \
+  --parameters "{
+    \"name\": \"github-$ENV\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:$REPO_OWNER/$REPO_NAME:ref:refs/heads/main\",
+    \"audiences\": [\"api://AzureADTokenExchange\"]
+  }"
+
+# Assign Contributor role
+az role assignment create \
+  --assignee "$APP_ID" \
+  --role "Contributor" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
+
+# Output IDs (save these for GitHub secrets)
+echo "AZURE_CLIENT_ID_${ENV^^}: $APP_ID"
+echo "AZURE_TENANT_ID_${ENV^^}: $(az account show --query tenantId -o tsv)"
+echo "AZURE_SUBSCRIPTION_ID_${ENV^^}: $SUBSCRIPTION_ID"
+```
+
+### Required Permissions
+
+The deployment identity needs these permissions:
+
+| Permission | Scope | Purpose |
+|------------|-------|---------|
+| Contributor | Resource Group | Create and manage resources |
+| User Access Administrator | Resource Group | Assign managed identity roles |
+| Storage Blob Data Contributor | Storage Account | Grant AKS workload access |
+| Azure Service Bus Data Sender | Service Bus | Grant AKS workload access |
+
+### Portal-Specific Prerequisites (Self-Hosted Only)
+
+If deploying the self-service portal (not needed for SaaS signup):
+
+#### Cosmos DB Setup
+
+Create Cosmos DB account and containers for multi-tenant data:
+
+```bash
+# Set variables
+RESOURCE_GROUP="cloudhealthoffice-prod"
+COSMOS_ACCOUNT="cloudhealthoffice-cosmos"
+DATABASE_NAME="CloudHealthOffice"
+LOCATION="eastus"
+
+# Create Cosmos DB account
+az cosmosdb create \
+  --name "$COSMOS_ACCOUNT" \
+  --resource-group "$RESOURCE_GROUP" \
+  --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=False \
+  --default-consistency-level "Session" \
+  --enable-automatic-failover false
+
+# Create database
+az cosmosdb sql database create \
+  --account-name "$COSMOS_ACCOUNT" \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$DATABASE_NAME"
+
+# Create Tenants container (partition key: /tenantId)
+az cosmosdb sql container create \
+  --account-name "$COSMOS_ACCOUNT" \
+  --resource-group "$RESOURCE_GROUP" \
+  --database-name "$DATABASE_NAME" \
+  --name "Tenants" \
+  --partition-key-path "/tenantId" \
+  --throughput 400
+
+# Create Members container (partition key: /id)
+az cosmosdb sql container create \
+  --account-name "$COSMOS_ACCOUNT" \
+  --resource-group "$RESOURCE_GROUP" \
+  --database-name "$DATABASE_NAME" \
+  --name "Members" \
+  --partition-key-path "/id" \
+  --throughput 400
+
+# Create SalesInquiries container (partition key: /id)
+az cosmosdb sql container create \
+  --account-name "$COSMOS_ACCOUNT" \
+  --resource-group "$RESOURCE_GROUP" \
+  --database-name "$DATABASE_NAME" \
+  --name "SalesInquiries" \
+  --partition-key-path "/id" \
+  --throughput 400
+
+# Get connection strings (save for Kubernetes secrets)
+COSMOS_ENDPOINT=$(az cosmosdb show \
+  --name "$COSMOS_ACCOUNT" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "documentEndpoint" -o tsv)
+
+COSMOS_KEY=$(az cosmosdb keys list \
+  --name "$COSMOS_ACCOUNT" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "primaryMasterKey" -o tsv)
+
+echo "CosmosDb__Endpoint: $COSMOS_ENDPOINT"
+echo "CosmosDb__Key: $COSMOS_KEY"
+```
+
+**Container Configuration:**
+
+| Container | Partition Key | Throughput | Purpose |
+|-----------|---------------|------------|---------|
+| Tenants | `/tenantId` | 400 RU/s | Multi-tenant isolation, subscription metadata |
+| Members | `/id` | 400 RU/s | User accounts, role assignments |
+| SalesInquiries | `/id` | 400 RU/s | Enterprise contact sales tracking |
+
+#### Stripe Configuration
+
+Set up Stripe for subscription billing:
+
+**1. Create Stripe Account** (if not exists):
+- Sign up at https://stripe.com
+- Complete business verification
+- Enable payment methods (Credit Card, ACH, SEPA)
+
+**2. Create Products and Prices:**
+
+```bash
+# Install Stripe CLI
+brew install stripe/stripe-cli/stripe
+
+# Login to Stripe
+stripe login
+
+# Create Starter product
+stripe products create \
+  --name "Cloud Health Office - Starter" \
+  --description "10,000 claims/month, all EDI modules"
+
+# Create Starter price (with 14-day trial - contact sales for pricing)
+STARTER_PRICE_ID=$(stripe prices create \
+  --unit-amount ${STRIPE_PRICE_CENTS:?Set price in cents} \
+  --currency usd \
+  --recurring[interval]=month \
+  --product=<starter-product-id> \
+  --query id -o tsv)
+
+# Create Professional product
+stripe products create \
+  --name "Cloud Health Office - Professional" \
+  --description "50,000 claims/month, all modules + FHIR + Analytics"
+
+# Create Professional price (contact sales for pricing, with 14-day trial)
+PROFESSIONAL_PRICE_ID=$(stripe prices create \
+  --unit-amount ${STRIPE_PRICE_CENTS:?Set price in cents} \
+  --currency usd \
+  --recurring[interval]=month \
+  --product=<professional-product-id> \
+  --query id -o tsv)
+
+echo "Starter Price ID: $STARTER_PRICE_ID"
+echo "Professional Price ID: $PROFESSIONAL_PRICE_ID"
+```
+
+**3. Get API Keys:**
+
+```bash
+# Test mode (development/staging)
+stripe keys list --test
+
+# Production mode (live environment)
+stripe keys list --live
+```
+
+**4. Configure Kubernetes Secrets:**
+
+```bash
+# Create stripe-api-keys secret
+kubectl create secret generic stripe-api-keys \
+  --namespace cloudhealthoffice \
+  --from-literal=Stripe__PublishableKey="pk_test_..." \
+  --from-literal=Stripe__SecretKey="sk_test_..." \
+  --from-literal=Stripe__Price__Starter="$STARTER_PRICE_ID" \
+  --from-literal=Stripe__Price__Professional="$PROFESSIONAL_PRICE_ID"
+
+# Create cosmos-secret
+kubectl create secret generic cosmos-secret \
+  --namespace cloudhealthoffice \
+  --from-literal=CosmosDb__Endpoint="$COSMOS_ENDPOINT" \
+  --from-literal=CosmosDb__Key="$COSMOS_KEY" \
+  --from-literal=CosmosDb__DatabaseName="CloudHealthOffice" \
+  --from-literal=CosmosDb__TenantsContainer="Tenants" \
+  --from-literal=CosmosDb__MembersContainer="Members" \
+  --from-literal=CosmosDb__SalesInquiriesContainer="SalesInquiries"
+```
+
+**Environment Variables (appsettings.json):**
+
+```json
+{
+  "Stripe": {
+    "PublishableKey": "pk_test_...",
+    "SecretKey": "sk_test_...",
+    "Price": {
+      "Starter": "price_...",
+      "Professional": "price_..."
+    }
+  },
+  "CosmosDb": {
+    "Endpoint": "https://....documents.azure.com:443/",
+    "Key": "...",
+    "DatabaseName": "CloudHealthOffice",
+    "TenantsContainer": "Tenants",
+    "MembersContainer": "Members",
+    "SalesInquiriesContainer": "SalesInquiries"
+  },
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "common",
+    "ClientId": "54f3419d-0d69-4b06-939a-c1a260596556",
+    "CallbackPath": "/signin-oidc"
+  }
+}
+```
+
+**Note**: Use Stripe **test mode** for development/staging, **live mode** for production only.
+
+---
+
+## GitHub Configuration
+
+**📘 For complete GitHub Actions setup including OIDC authentication, secrets, and variables, see [GITHUB-ACTIONS-SETUP.md](GITHUB-ACTIONS-SETUP.md).**
+
+This section provides a quick reference. For detailed instructions, federated credentials setup, and troubleshooting, refer to the comprehensive guide.
+
+### Repository Secrets (Quick Reference)
+
+Configure these secrets for each environment in GitHub Settings → Secrets and variables → Actions:
+
+#### DEV Environment
+```
+AZURE_CLIENT_ID_DEV         = <app-id-from-azure>
+AZURE_TENANT_ID_DEV         = <tenant-id-from-azure>
+AZURE_SUBSCRIPTION_ID_DEV   = <subscription-id>
+```
+
+#### UAT Environment
+```
+AZURE_CLIENT_ID_UAT         = <app-id-from-azure>
+AZURE_TENANT_ID_UAT         = <tenant-id-from-azure>
+AZURE_SUBSCRIPTION_ID_UAT   = <subscription-id>
+```
+
+#### PROD Environment
+```
+AZURE_CLIENT_ID_PROD        = <app-id-from-azure>
+AZURE_TENANT_ID_PROD        = <tenant-id-from-azure>
+AZURE_SUBSCRIPTION_ID_PROD  = <subscription-id>
+```
+
+**To configure secrets:**
+1. Go to GitHub repository → Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Enter name (e.g., `AZURE_CLIENT_ID_DEV`)
+4. Paste value from Azure setup
+5. Click "Add secret"
+6. Repeat for all secrets
+
+**Need help?** See [GITHUB-ACTIONS-SETUP.md](GITHUB-ACTIONS-SETUP.md#github-secrets-configuration) for:
+- Step-by-step instructions with screenshots
+- GitHub CLI automation scripts
+- Verification procedures
+- Troubleshooting common issues
+
+### Repository Variables (Quick Reference)
+
+Configure environment-specific variables:
+
+```
+AZURE_REGION_DEV   = eastus
+AZURE_REGION_UAT   = eastus
+AZURE_REGION_PROD  = eastus
+
+BASE_NAME_DEV      = hipaa-attachments-dev
+BASE_NAME_UAT      = hipaa-attachments-uat
+BASE_NAME_PROD     = hipaa-attachments-prod
+```
+
+**For complete variable setup**, see [GITHUB-ACTIONS-SETUP.md](GITHUB-ACTIONS-SETUP.md#github-variables-configuration).
+
+## Bicep Compilation and ARM Deployment
+
+This section covers the complete Bicep-to-ARM deployment workflow used by the GitHub Actions pipelines.
+
+### Bicep Template Structure
+
+The infrastructure is defined in `infra/main.bicep` which creates:
+
+**Core Resources:**
+- Azure Storage Account (Data Lake Gen2 with hierarchical namespace)
+- Service Bus Namespace (Standard tier)
+  - Topics: `attachments-in`, `rfai-requests`, `edi-278`, `appeals-auth`, `auth-statuses`, `dead-letter`
+- AKS Cluster (Kubernetes, hosts microservices and Argo Workflows)
+- Application Insights (monitoring and telemetry)
+
+> **Note:** Logic Apps and Integration Accounts have been removed. EDI processing is now handled by .NET microservices on AKS, orchestrated by Argo Workflows. See [docs/adr/004-remove-logic-apps.md](../adr/004-remove-logic-apps.md) for rationale.
+
+### Bicep Compilation Process
+
+#### Step 1: Install Bicep CLI
+
+```bash
+# Install or update Bicep CLI
+az bicep install
+
+# Verify version (minimum 0.37.0 required)
+az bicep version
+```
+
+**Expected output:**
+```
+Bicep CLI version 0.37.4 (...)
+```
+
+#### Step 2: Compile Bicep to ARM Template
+
+```bash
+# Compile main infrastructure template
+az bicep build \
+  --file infra/main.bicep \
+  --outfile /tmp/arm-template.json
+
+# Check compilation success
+if [ -s /tmp/arm-template.json ]; then
+  echo "✓ Bicep compilation successful"
+  echo "ARM template size: $(wc -c < /tmp/arm-template.json) bytes"
+else
+  echo "✗ Bicep compilation failed"
+  exit 1
+fi
+```
+
+**Expected output:**
+```
+✓ Bicep compilation successful
+ARM template size: 14237 bytes
+```
+
+**Common warnings (safe to ignore):**
+```
+Warning use-parent-property: Use a reference to the parent resource instead of repeating name/type
+  → This warning appears for Service Bus topics and is cosmetic only
+  → Does not affect deployment or runtime behavior
+```
+
+#### Step 3: Validate ARM Template Syntax
+
+```bash
+# Validate template structure
+az deployment group validate \
+  --resource-group <resource-group-name> \
+  --template-file infra/main.bicep \
+  --parameters baseName=<base-name> \
+               location=<azure-region> \
+               sftpHost=<sftp-host> \
+               sftpUsername=<username> \
+               sftpPassword=<password> \
+               serviceBusName=<service-bus-name> \
+               iaName=<integration-account-name> \
+               connectorLocation=<connector-region>
+```
+
+**Note**: This command requires authentication and validates against Azure API schemas, but does not deploy resources.
+
+### ARM What-If Analysis
+
+ARM What-If provides a **preview of changes** before actual deployment.
+
+#### Purpose
+
+- Shows what resources will be **created**, **modified**, or **deleted**
+- Identifies configuration changes
+- Helps prevent accidental resource deletions
+- Required for production deployments (best practice)
+
+#### Running What-If Analysis
+
+```bash
+# Run What-If analysis
+az deployment group what-if \
+  --resource-group <resource-group-name> \
+  --template-file infra/main.bicep \
+  --parameters baseName=<base-name> \
+               location=<azure-region> \
+               sftpHost=<sftp-host> \
+               sftpUsername=<username> \
+               sftpPassword=<password> \
+               serviceBusName=<service-bus-name> \
+               iaName=<integration-account-name> \
+               connectorLocation=<connector-region> \
+  --no-pretty-print
+```
+
+#### Interpreting What-If Output
+
+**Resource will be created** (first deployment):
+```
++ Resource Microsoft.Storage/storageAccounts
+  Location: eastus
+  SKU: Standard_LRS
+```
+
+**Resource will be modified** (configuration change):
+```
+~ Resource Microsoft.Web/sites 'hipaa-attachments-la'
+  - properties.siteConfig.appSettings[0].value: "old-value"
+  + properties.siteConfig.appSettings[0].value: "new-value"
+```
+
+**Resource will be deleted** (⚠️ WARNING):
+```
+- Resource Microsoft.Web/connections 'old-connection'
+```
+
+**No changes detected**:
+```
+Resource changes: 0 to create, 0 to modify, 0 to delete
+```
+
+#### What-If Best Practices
+
+✅ **Always run What-If before production deployments**  
+✅ **Review changes carefully**, especially deletions  
+✅ **Save What-If output** for deployment records  
+✅ **Use `--no-pretty-print`** for CI/CD logging  
+❌ **Never skip What-If for PROD** environments  
+
+### ARM Template Deployment
+
+#### Deployment Methods
+
+**Method 1: Azure CLI Direct Deployment**
+
+```bash
+# Deploy infrastructure
+az deployment group create \
+  --resource-group <resource-group-name> \
+  --template-file infra/main.bicep \
+  --parameters baseName=<base-name> \
+               location=<azure-region> \
+               sftpHost=<sftp-host> \
+               sftpUsername=<username> \
+               sftpPassword=<password> \
+               serviceBusName=<service-bus-name> \
+               iaName=<integration-account-name> \
+               connectorLocation=<connector-region> \
+  --name "hipaa-infra-deployment-$(date +%Y%m%d-%H%M%S)" \
+  --verbose
+```
+
+**Method 2: GitHub Actions with azure/arm-deploy**
+
+```yaml
+- name: Deploy Infrastructure
+  uses: azure/arm-deploy@v2
+  with:
+    scope: resourcegroup
+    resourceGroupName: ${{ env.RESOURCE_GROUP }}
+    template: infra/main.bicep
+    parameters: >
+      baseName=${{ env.BASE_NAME }}
+      location=${{ env.LOCATION }}
+      sftpHost=${{ secrets.SFTP_HOST }}
+      sftpUsername=${{ secrets.SFTP_USERNAME }}
+      sftpPassword=${{ secrets.SFTP_PASSWORD }}
+      serviceBusName=${{ env.SERVICE_BUS_NAME }}
+      iaName=${{ env.IA_NAME }}
+      connectorLocation=${{ env.CONNECTOR_LOCATION }}
+    deploymentName: hipaa-infra-${{ github.run_number }}
+    failOnStdErr: true
+```
+
+#### Deployment Parameters
+
+| Parameter | Required | Description | Example |
+|-----------|----------|-------------|---------|
+| `baseName` | Yes | Resource name prefix | `hipaa-attachments-prod` |
+| `location` | Yes | Azure region for core resources | `eastus` |
+| `connectorLocation` | Yes | Region for API connections | `eastus` |
+| `serviceBusName` | Yes | Service Bus namespace name | `hipaa-attachments-prod-svc` |
+| `iaName` | Yes | Integration Account name | `prod-integration-account` |
+| `sftpHost` | Yes | SFTP server hostname | `sftp.clearinghouse.example.com` |
+| `sftpUsername` | Yes | SFTP username | `service-account` |
+| `sftpPassword` | Yes (secure) | SFTP password | `<secret-value>` |
+| `storageSku` | No | Storage account SKU | `Standard_LRS` (default) |
+| `iaSku` | No | Integration Account SKU | `Free` (default) |
+| `useExistingIa` | No | Use existing Integration Account | `false` (default) |
+| `enableB2B` | No | Enable X12 connector | `true` (default) |
+
+**🔒 Security Note**: Always pass sensitive parameters as secrets, never hardcode in templates or commit to version control.
+
+#### Monitoring Deployment Progress
+
+```bash
+# List active deployments
+az deployment group list \
+  --resource-group <resource-group-name> \
+  --query "[].{Name:name, State:properties.provisioningState, Timestamp:properties.timestamp}" \
+  --output table
+
+# Show deployment details
+az deployment group show \
+  --resource-group <resource-group-name> \
+  --name <deployment-name> \
+  --output jsonc
+```
+
+#### Deployment Timeline
+
+| Stage | Estimated Time | Description |
+|-------|----------------|-------------|
+| **Validation** | 5-10 seconds | Template syntax and parameter validation |
+| **What-If Analysis** | 10-20 seconds | Calculate deployment changes |
+| **Resource Creation** | 5-10 minutes | Deploy Azure resources |
+| **Connection Setup** | 1-2 minutes | Configure API connections |
+| **Total** | **6-13 minutes** | Complete infrastructure deployment |
+
+### Handling Deployment Failures
+
+#### View Failed Operations
+
+```bash
+# List failed operations in deployment
+DEPLOY_NAME="hipaa-infra-deployment-20241116"
+RG_NAME="payer-attachments-prod-rg"
+
+az deployment operation group list \
+  --resource-group "$RG_NAME" \
+  --name "$DEPLOY_NAME" \
+  --query "[?properties.provisioningState=='Failed']" \
+  --output table
+
+# Show detailed error for specific operation
+az deployment operation group show \
+  --resource-group "$RG_NAME" \
+  --name "$DEPLOY_NAME" \
+  --operation-ids <operation-id> \
+  --output jsonc
+```
+
+#### Common Deployment Errors
+
+**Error: InvalidTemplateDeployment**
+- **Cause**: Missing required parameter or invalid parameter value
+- **Solution**: Check parameter names and types match template definition
+
+**Error: ResourceQuotaExceeded**
+- **Cause**: Subscription resource quota limit reached
+- **Solution**: Request quota increase or delete unused resources
+
+**Error: ResourceNameAlreadyExists**
+- **Cause**: Resource name conflict (storage accounts must be globally unique)
+- **Solution**: Use different `baseName` or delete existing conflicting resource
+
+**Error: AuthorizationFailed**
+- **Cause**: Insufficient permissions for deployment identity
+- **Solution**: Grant Contributor role to service principal/managed identity
+
+### Post-Deployment Verification
+
+```bash
+# List deployed resources
+az resource list \
+  --resource-group <resource-group-name> \
+  --query "[].{Name:name, Type:type, State:provisioningState, Location:location}" \
+  --output table
+
+# Verify specific resources
+az storage account show --name <storage-account> --query provisioningState
+az servicebus namespace show --name <service-bus> --query provisioningState
+kubectl get pods -n cloudhealthoffice
+```
+
+**Expected output (successful deployment):**
+```
+Name                          Type                                   State      Location
+----------------------------  -------------------------------------  ---------  ----------
+staging...                    Microsoft.Storage/storageAccounts      Succeeded  eastus
+hipaa-attachments-prod-svc    Microsoft.ServiceBus/namespaces        Succeeded  eastus
+hipaa-attachments-prod-la     Microsoft.Web/sites                    Succeeded  eastus
+hipaa-attachments-prod-ai     Microsoft.Insights/components          Succeeded  eastus
+prod-integration-account      Microsoft.Logic/integrationAccounts    Succeeded  eastus
+```
+
+### Container Image Build & Deployment (Kubernetes)
+
+For Kubernetes deployments, container images must be built and pushed to GitHub Container Registry (GHCR) before deploying workflows.
+
+#### Automated Build via GitHub Actions
+
+The `.github/workflows/docker-build.yml` workflow automatically builds all container images on push to `main`:
+
+**17 Container Images Built:**
+- **9 Microservices**: member-service, coverage-service, claims-service, eligibility-service, authorization-service, provider-service, benefit-plan-service, reference-data-service, sponsor-service
+- **2 UI**: portal (Blazor), site (static)
+- **6 Utility Containers**: x12-parser, claims-publisher, kafka-publisher, sftp-fetcher, x12-encoder, metadata-extractor
+
+**Trigger Paths:**
+- `services/**` → Builds affected microservices
+- `portal/**` → Builds portal
+- `site/**` → Builds site
+- `containers/**` → Builds utility containers
+
+**Images pushed to**: `ghcr.io/aurelianware/cloudhealthoffice-*:latest`
+
+#### Manual Container Build
+
+If you need to build containers locally:
+
+```bash
+# Build all utility containers
+for container in x12-parser claims-publisher kafka-publisher sftp-fetcher x12-encoder metadata-extractor; do
+  docker build -t ghcr.io/aurelianware/cloudhealthoffice-$container:latest containers/$container
+  docker push ghcr.io/aurelianware/cloudhealthoffice-$container:latest
+done
+
+# Build microservices
+for service in member coverage claims eligibility authorization provider benefit-plan reference-data sponsor claims-scrubbing; do
+  docker build -t ghcr.io/aurelianware/cloudhealthoffice-$service-service:latest services/$service-service
+  docker push ghcr.io/aurelianware/cloudhealthoffice-$service-service:latest
+done
+
+# Build portal and site
+docker build -t ghcr.io/aurelianware/cloudhealthoffice-portal:latest portal/CloudHealthOffice.Portal
+docker push ghcr.io/aurelianware/cloudhealthoffice-portal:latest
+
+docker build -t ghcr.io/aurelianware/cloudhealthoffice-site:latest site
+docker push ghcr.io/aurelianware/cloudhealthoffice-site:latest
+```
+
+#### Verify Images in GHCR
+
+```bash
+# List all images (requires GitHub CLI)
+gh api /orgs/aurelianware/packages?package_type=container | jq -r '.[].name'
+
+# Or visit: https://github.com/orgs/aurelianware/packages?repo_name=cloudhealthoffice
+```
+
+#### Deploy Kafka Topics (Required for 837 Pipeline)
+
+```bash
+# Apply Kafka topics for claims processing
+kubectl apply -f kafka/topics.yaml
+
+# Verify topics created
+kubectl get kafkatopics -n kafka
+
+# Expected output:
+# NAME                      CLUSTER                PARTITIONS   REPLICATION FACTOR
+# edi-raw-files            cloudhealthoffice      3            3
+# claims-adjudication      cloudhealthoffice      6            3
+# claims-work-queue        cloudhealthoffice      3            3
+# claims-rejected          cloudhealthoffice      3            3
+```
+
+#### Deploy Argo Workflows
+
+```bash
+# Deploy 837 ingestion workflow
+kubectl apply -f argo-workflows/x12-837-ingest.yaml
+
+# Verify CronWorkflow created
+kubectl get cronworkflows -n cloudhealthoffice
+kubectl get workflows -n cloudhealthoffice
+
+# Expected output shows CronWorkflow scheduled to run every 5 minutes
+```
+
+#### Deploy Argo Events
+
+```bash
+# Deploy claims adjudication event triggers
+kubectl apply -f argo-events/claims-adjudication-eventsource.yaml
+
+# Verify EventSource and Sensor
+kubectl get eventsources -n argo-events
+kubectl get sensors -n argo-events
+```
+
+#### Verify Container Deployments
+
+```bash
+# Check portal pods (should use new image)
+kubectl get pods -n cloudhealthoffice -l app=portal
+
+# Check service pods
+kubectl get pods -n cloudhealthoffice
+
+# Verify image versions
+kubectl get pods -n cloudhealthoffice -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].image}{"\n"}{end}'
+```
+
+**For complete 837 claims pipeline documentation**, see [docs/837-CLAIMS-PIPELINE.md](./docs/837-CLAIMS-PIPELINE.md).
+
+## Environment Protection Rules and Approval Gates
+
+This section describes how to configure GitHub Environment protection rules to require manual approvals before deployments to UAT and PROD environments.
+
+### Overview
+
+The deployment workflows use GitHub Environments with protection rules to implement a gated release strategy:
+
+- **UAT-approval**: Approval gate before UAT deployment
+- **UAT**: Actual UAT environment for resource deployment
+- **PROD-approval**: Approval gate before PROD deployment
+- **PROD**: Actual PROD environment for resource deployment
+
+### Quick Reference
+
+**For Approvers:**
+1. You'll receive a GitHub notification when approval is needed
+2. Click "Review pending deployments" in the notification or workflow run
+3. Review the deployment details (branch, commit, changes)
+4. Click "Approve and deploy" or "Reject" with optional comment
+5. Deployment proceeds if approved, stops if rejected
+
+**For Deployers:**
+1. Push to `release/*` branch (UAT) or trigger manual workflow (PROD)
+2. Workflow starts and waits at approval gate
+3. Configured reviewers are notified automatically
+4. Monitor workflow run in Actions tab
+5. Once approved, deployment continues automatically
+
+### Why Use Approval Gates?
+
+Approval gates provide:
+- ✅ **Risk Mitigation**: Prevent accidental deployments to production
+- ✅ **Compliance**: Meet audit requirements for change management
+- ✅ **Quality Control**: Ensure proper testing before production release
+- ✅ **Accountability**: Track who approved each deployment
+
+### Step-by-Step Configuration
+
+#### Step 1: Create GitHub Environments
+
+1. Navigate to your GitHub repository
+2. Click **Settings** → **Environments**
+3. Create the following environments (click "New environment" for each):
+
+   **For UAT:**
+   - Environment name: `UAT-approval`
+   - Environment name: `UAT`
+
+   **For PROD:**
+   - Environment name: `PROD-approval`
+   - Environment name: `PROD`
+
+#### Step 2: Configure UAT-approval Environment
+
+1. Click on **UAT-approval** environment
+2. Under "Deployment protection rules":
+   - ✅ Check **Required reviewers**
+   - Add reviewers (UAT leads, QA team members)
+   - Minimum: 1-2 reviewers recommended
+3. Optional settings:
+   - **Wait timer**: Set to 0 minutes (approval required immediately)
+   - **Deployment branches**: Select "Selected branches" → Add `release/*` pattern
+4. Click **Save protection rules**
+
+#### Step 3: Configure UAT Environment
+
+1. Click on **UAT** environment
+2. Under "Environment secrets", add UAT-specific secrets:
+   - `AZURE_CLIENT_ID_UAT`
+   - `AZURE_TENANT_ID_UAT`
+   - `AZURE_SUBSCRIPTION_ID_UAT`
+3. Under "Environment variables", add UAT-specific variables:
+   - `AZURE_RG_NAME` = `hipaa-attachments-uat-rg`
+   - `AZURE_LOCATION` = `eastus`
+   - `BASE_NAME` = `hipaa-attachments-uat`
+4. Optional protection rules:
+   - **Deployment branches**: Select "Selected branches" → Add `release/*` pattern
+5. Click **Save protection rules**
+
+#### Step 4: Configure PROD-approval Environment
+
+1. Click on **PROD-approval** environment
+2. Under "Deployment protection rules":
+   - ✅ Check **Required reviewers**
+   - Add reviewers (Production approvers, DevOps leads, Compliance team)
+   - Minimum: 2-3 reviewers recommended for production
+3. Optional settings:
+   - **Wait timer**: Set to 0 minutes (or add a delay if needed)
+   - **Deployment branches**: Select "Protected branches only" (main branch)
+4. Click **Save protection rules**
+
+#### Step 5: Configure PROD Environment
+
+1. Click on **PROD** environment
+2. Under "Environment secrets", add PROD-specific secrets:
+   - `AZURE_CLIENT_ID` (or `AZURE_CLIENT_ID_PROD`)
+   - `AZURE_TENANT_ID` (or `AZURE_TENANT_ID_PROD`)
+   - `AZURE_SUBSCRIPTION_ID` (or `AZURE_SUBSCRIPTION_ID_PROD`)
+   - `SFTP_HOST`
+   - `SFTP_USERNAME`
+   - `SFTP_PASSWORD`
+3. Under "Environment variables", add PROD-specific variables:
+   - `AZURE_RG_NAME` = `payer-attachments-prod-rg`
+   - `AZURE_LOCATION` = `eastus`
+   - `BASE_NAME` = `hipaa-attachments-prod`
+   - `IA_NAME` = `prod-integration-account`
+   - `SERVICE_BUS_NAME` = `hipaa-attachments-prod-sb`
+   - `STORAGE_SKU` = `Standard_GRS`
+   - `AZURE_CONNECTOR_LOCATION` = `eastus`
+4. Protection rules:
+   - ✅ **Deployment branches**: Select "Protected branches only"
+5. Click **Save protection rules**
+
+### Approval Workflow
+
+#### UAT Deployment Approval
+
+When a deployment to UAT is triggered (push to `release/*` branch):
+
+1. **Workflow starts** and reaches `approval-gate` job
+2. **GitHub sends notification** to configured reviewers
+3. **Reviewers receive email/notification** with deployment details:
+   - Branch name
+   - Commit SHA
+   - Triggered by (GitHub user)
+   - Link to workflow run
+4. **Reviewer clicks "Review pending deployments"**
+5. **Reviewer reviews**:
+   - Code changes (via commit link)
+   - Branch name and author
+   - Previous test results
+6. **Reviewer approves or rejects**:
+   - ✅ **Approve**: Deployment proceeds to UAT
+   - ❌ **Reject**: Deployment is cancelled
+7. **If approved**: Workflow continues with infrastructure and AKS/Argo deployment
+8. **If rejected**: Workflow stops, no changes deployed
+
+#### PROD Deployment Approval
+
+When a deployment to PROD is triggered (manual workflow dispatch or push to main):
+
+1. **Workflow starts** and reaches `approval-gate` job
+2. **GitHub sends notification** to configured reviewers (typically 2-3 people)
+3. **ALL required reviewers must approve** (if configured)
+4. **Reviewer reviews**:
+   - UAT test results
+   - Change management ticket
+   - Release notes
+   - Stakeholder sign-off
+5. **Reviewer approves or rejects**:
+   - ✅ **Approve**: Deployment proceeds to PROD
+   - ❌ **Reject**: Deployment is cancelled, issue must be investigated
+6. **If approved**: Workflow continues with production deployment
+7. **Post-deployment**: Health checks run automatically
+
+### Best Practices
+
+#### Reviewer Selection
+
+**UAT Reviewers:**
+- QA Team Lead
+- Application Owner
+- Senior Developer
+
+**PROD Reviewers:**
+- DevOps Manager
+- Application Owner
+- Compliance Officer
+- Operations Manager
+
+#### Approval Guidelines
+
+Before approving a deployment, reviewers should verify:
+
+**For UAT:**
+- ✅ All PR checks passed
+- ✅ Code review completed
+- ✅ Unit tests pass
+- ✅ DEV environment tested successfully
+- ✅ No high-severity issues in PR
+- ✅ Security scans completed (TruffleHog, PII/PHI scan)
+- ✅ No secrets or credentials in code
+- ✅ Bicep validation passed
+
+**For PROD:**
+- ✅ UAT deployment successful
+- ✅ UAT testing completed and signed off
+- ✅ Change management ticket approved
+- ✅ Rollback plan documented
+- ✅ Deployment window scheduled
+- ✅ Stakeholders notified
+- ✅ No open critical bugs
+- ✅ Backup verified
+- ✅ Security scans passed (no critical vulnerabilities)
+- ✅ ARM What-If analysis reviewed
+- ✅ No unexpected resource deletions
+- ✅ Compliance requirements met
+
+#### Emergency Deployments
+
+For urgent production hotfixes:
+
+1. Create emergency change ticket
+2. Get expedited approval from on-call manager
+3. Document reason for emergency deployment
+4. Follow standard approval process (but expedited)
+5. Conduct post-deployment review
+
+### Monitoring Approvals
+
+#### View Pending Approvals
+
+1. Go to repository → **Actions** tab
+2. Look for runs with "Waiting" status
+3. Click on the run
+4. You'll see "Review pending deployments" button
+
+#### Approval History
+
+1. Go to repository → **Settings** → **Environments**
+2. Click on environment (e.g., PROD-approval)
+3. Click **Deployment history**
+4. View all deployments with approval status and reviewer names
+
+### Troubleshooting
+
+#### Issue: No reviewers are notified
+
+**Solutions:**
+1. Verify reviewers are added in Environment settings
+2. Check reviewers have notification enabled in GitHub settings
+3. Ensure reviewers have repository access
+4. Check GitHub email delivery settings
+
+#### Issue: Approval button not showing
+
+**Solutions:**
+1. Verify you are a configured reviewer for the environment
+2. Check if deployment is waiting on a different gate
+3. Refresh the page
+4. Verify environment protection rules are saved
+
+#### Issue: Deployment proceeds without approval
+
+**Solutions:**
+1. Check if "Required reviewers" is enabled for the environment
+2. Verify environment name matches workflow YAML
+3. Check if user has bypass permission (repository admins)
+4. Review environment protection rule configuration
+
+### Security Considerations
+
+#### Access Control
+
+- Limit reviewers to trusted team members
+- Use teams instead of individuals for better management
+- Regularly review and update reviewer list
+- Audit approval logs monthly
+
+#### Bypass Protection
+
+Repository administrators can bypass environment protection rules. To prevent accidental bypass:
+
+1. Limit admin access to repository
+2. Use branch protection rules in addition to environment rules
+3. Enable audit logging
+4. Review deployment history regularly
+
+### Example Approval Notification
+
+When a reviewer receives an approval request:
+
+```
+📧 Pending deployments for {owner}/hipaa-attachments
+
+Deployment to PROD-approval is waiting for your review
+
+Details:
+- Workflow: Deploy
+- Branch: main
+- Triggered by: john.doe
+- Commit: abc1234 - "Fix HIPAA 275 processing issue"
+
+Review deployment: [Review pending deployments]
+```
+
+Reviewer clicks the link and sees:
+- Commit details
+- Changed files
+- Test results
+- Option to Approve or Reject with comment
+
+### Deployment Audit Logging and Compliance
+
+All deployments are automatically logged for compliance and audit purposes.
+
+#### Automated Audit Trails
+
+**GitHub Actions Audit:**
+- Every deployment run is logged with:
+  - Timestamp and duration
+  - Triggered by (user/system)
+  - Branch and commit SHA
+  - Approval decisions with reviewer names
+  - Deployment outcome (success/failure)
+  - All job logs and outputs
+
+**Access GitHub Deployment History:**
+```bash
+# Using GitHub CLI
+gh run list --workflow=deploy.yml --limit 50
+
+# View specific run details
+gh run view <run-id> --log
+
+# List all approvals
+gh api /repos/{owner}/{repo}/actions/runs --jq '.workflow_runs[] | select(.conclusion != null) | {id: .id, status: .status, conclusion: .conclusion, created_at: .created_at, actor: .actor.login}'
+```
+
+**Azure Activity Log:**
+```bash
+# Query deployment activities
+az monitor activity-log list \
+  --resource-group "payer-attachments-prod-rg" \
+  --start-time "2024-01-01T00:00:00Z" \
+  --query "[?contains(operationName.value, 'deployments')].{Time:eventTimestamp, Caller:caller, Operation:operationName.localizedValue, Status:status.localizedValue}" \
+  --output table
+
+# Query resource changes
+az monitor activity-log list \
+  --resource-group "payer-attachments-prod-rg" \
+  --start-time "2024-01-01T00:00:00Z" \
+  --query "[?level=='Warning' || level=='Error'].{Time:eventTimestamp, Level:level, Operation:operationName.localizedValue, Status:status.localizedValue}" \
+  --output table
+
+# Export audit logs for compliance
+az monitor activity-log list \
+  --resource-group "payer-attachments-prod-rg" \
+  --start-time "2024-01-01T00:00:00Z" \
+  --output json > deployment-audit-$(date +%Y%m%d).json
+```
+
+#### Deployment Metrics and Tracking
+
+**Key Metrics to Monitor:**
+
+1. **Approval Time**: Time from deployment trigger to approval
+2. **Deployment Duration**: Time from approval to completion
+3. **Deployment Frequency**: Number of deployments per environment per week
+4. **Rollback Rate**: Percentage of deployments requiring rollback
+5. **Approval Rejection Rate**: Percentage of rejected deployments
+
+**Query Deployment Metrics:**
+```bash
+# GitHub CLI - Deployment frequency (last 30 days)
+gh api /repos/{owner}/{repo}/actions/runs \
+  --jq '.workflow_runs[] | select(.created_at > (now - 2592000 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | {workflow: .name, status: .status, conclusion: .conclusion, created_at: .created_at}' | \
+  jq -s 'group_by(.workflow) | map({workflow: .[0].workflow, count: length})'
+
+# Average deployment duration
+gh api /repos/{owner}/{repo}/actions/runs \
+  --jq '.workflow_runs[] | select(.conclusion == "success") | {duration: (.updated_at | fromdateiso8601) - (.created_at | fromdateiso8601)}' | \
+  jq -s 'add/length | . / 60 | "Average deployment time: \(.) minutes"'
+```
+
+**Application Insights - Deployment Correlation:**
+```kusto
+// Query deployments and correlate with errors
+customEvents
+| where timestamp > ago(30d)
+| where name == "deployment_started" or name == "deployment_completed"
+| extend 
+    deploymentId = tostring(customDimensions["deploymentId"]),
+    environment = tostring(customDimensions["environment"]),
+    status = tostring(customDimensions["status"])
+| summarize 
+    DeploymentCount = count(),
+    SuccessCount = countif(status == "success"),
+    FailureCount = countif(status == "failed")
+    by environment
+| extend SuccessRate = (SuccessCount * 100.0) / DeploymentCount
+```
+
+#### Compliance Reporting
+
+**Monthly Deployment Report:**
+
+Create a monthly report including:
+- Total deployments by environment
+- Approval metrics (approved/rejected/time-to-approve)
+- Rollback incidents and root causes
+- Security scan results
+- Incident response activities
+- Change management tickets linked to deployments
+
+**Generate Compliance Report:**
+```bash
+#!/bin/bash
+# deployment-compliance-report.sh
+
+MONTH=$(date -d "last month" +%Y-%m)
+OUTPUT_DIR="compliance-reports"
+mkdir -p "$OUTPUT_DIR"
+
+echo "Generating deployment compliance report for $MONTH"
+
+# GitHub deployment data
+gh api "/repos/{owner}/{repo}/actions/runs?created=$MONTH-01..$MONTH-31" \
+  --jq '.workflow_runs[] | {id, name, status, conclusion, created_at, actor: .actor.login}' \
+  > "$OUTPUT_DIR/github-deployments-$MONTH.json"
+
+# Azure activity logs
+az monitor activity-log list \
+  --resource-group "payer-attachments-prod-rg" \
+  --start-time "${MONTH}-01T00:00:00Z" \
+  --end-time "${MONTH}-31T23:59:59Z" \
+  --output json \
+  > "$OUTPUT_DIR/azure-activity-$MONTH.json"
+
+# Application Insights deployment events
+az monitor app-insights query \
+  --app "hipaa-attachments-prod-ai" \
+  --analytics-query "customEvents | where timestamp between(datetime('${MONTH}-01') .. datetime('${MONTH}-31')) | where name startswith 'deployment'" \
+  --output json \
+  > "$OUTPUT_DIR/app-insights-deployments-$MONTH.json"
+
+echo "✓ Compliance report generated in $OUTPUT_DIR/"
+echo "  - GitHub deployments: github-deployments-$MONTH.json"
+echo "  - Azure activity: azure-activity-$MONTH.json"
+echo "  - App Insights: app-insights-deployments-$MONTH.json"
+```
+
+#### Audit Log Retention
+
+**Retention Requirements:**
+- **GitHub Actions logs**: 90 days (default), download for long-term storage
+- **Azure Activity Logs**: 90 days (default), configure Log Analytics for extended retention
+- **Application Insights**: 90 days (default), configure 365+ days for compliance
+- **Deployment artifacts**: Retain indefinitely in artifact storage
+
+**Configure Extended Retention:**
+```bash
+# Application Insights - Set 2 year retention
+az monitor app-insights component update \
+  --app "hipaa-attachments-prod-ai" \
+  --resource-group "payer-attachments-prod-rg" \
+  --retention-time 730
+
+# Log Analytics Workspace - Set 2 year retention
+az monitor log-analytics workspace update \
+  --resource-group "payer-attachments-prod-rg" \
+  --workspace-name "hipaa-logs-workspace" \
+  --retention-time 730
+```
+
+### Communication and Notification Strategy
+
+Effective communication is critical for successful gated deployments.
+
+#### Stakeholder Notification Matrix
+
+| Event | DEV | UAT | PROD | Notification Method |
+|-------|-----|-----|------|---------------------|
+| **Deployment Started** | DevOps team | QA team, DevOps | All stakeholders | Slack/Teams, GitHub |
+| **Approval Needed** | N/A | UAT approvers | PROD approvers | Email, Slack/Teams |
+| **Deployment Complete** | DevOps team | QA team, DevOps | All stakeholders | Slack/Teams |
+| **Deployment Failed** | DevOps team | QA team, DevOps, Manager | All stakeholders, Exec | Email, Slack/Teams, SMS |
+| **Rollback Initiated** | DevOps team | QA team, DevOps, Manager | All stakeholders, Exec | Email, Slack/Teams, SMS |
+
+#### Pre-Deployment Communication Template
+
+**UAT Deployment Notification:**
+```markdown
+Subject: UAT Deployment Scheduled - Cloud Health Office Release X.Y.Z
+
+Team,
+
+A UAT deployment has been triggered and is awaiting approval.
+
+**Details:**
+- Release Version: X.Y.Z
+- Triggered by: [Developer Name]
+- Branch: release/vX.Y.Z
+- Commit: [Short SHA] - [Commit Message]
+- Scheduled Time: [Timestamp]
+
+**Changes:**
+- [Brief description of changes]
+- [Link to release notes]
+- [Link to PR]
+
+**Approval Required:**
+UAT approvers, please review and approve/reject the deployment:
+[Link to GitHub Actions approval page]
+
+**Testing Plan:**
+After deployment, QA team will execute:
+- [Test scenario 1]
+- [Test scenario 2]
+- [Test scenario 3]
+
+Questions? Contact: [DevOps Team]
+```
+
+**PROD Deployment Notification:**
+```markdown
+Subject: PROD Deployment Scheduled - Cloud Health Office Release X.Y.Z
+
+Team,
+
+A production deployment has been triggered and requires approval.
+
+**Details:**
+- Release Version: X.Y.Z
+- Triggered by: [Release Manager]
+- Branch: main
+- Commit: [Short SHA] - [Commit Message]
+- Deployment Window: [Start Time] - [End Time]
+
+**Changes:**
+[Detailed description of all changes included]
+
+**UAT Validation:**
+- UAT deployment: [Date/Time]
+- UAT testing: Completed [Date]
+- Issues found: [None / List of issues and resolutions]
+
+**Approval Required:**
+Production approvers must review and approve:
+[Link to GitHub Actions approval page]
+
+**Approval Checklist:**
+- [ ] UAT testing completed successfully
+- [ ] Change management ticket approved
+- [ ] Rollback plan documented
+- [ ] Stakeholders notified
+- [ ] No critical open issues
+
+**Rollback Plan:**
+[Brief description of rollback procedure]
+[Link to rollback documentation]
+
+**Post-Deployment:**
+- Health checks will run automatically
+- Monitoring alerts configured
+- On-call team notified
+
+Questions? Contact: [Release Manager / DevOps Lead]
+```
+
+#### Post-Deployment Communication Template
+
+**Successful Deployment:**
+```markdown
+Subject: ✅ [ENV] Deployment Complete - Cloud Health Office Release X.Y.Z
+
+Team,
+
+The [ENV] deployment has completed successfully.
+
+**Deployment Summary:**
+- Release Version: X.Y.Z
+- Environment: [UAT/PROD]
+- Completed: [Timestamp]
+- Duration: [X minutes]
+- Approved by: [Approver Names]
+
+**Resources Deployed:**
+- AKS Cluster: [Name]
+- Workflows: [List]
+- Infrastructure changes: [Summary]
+
+**Health Check Results:**
+✓ All health checks passed
+✓ AKS cluster running
+✓ Workflows enabled
+✓ API connections active
+✓ No errors in Application Insights
+
+**Next Steps:**
+[Environment-specific next steps]
+
+**Monitoring:**
+Application Insights: [Link]
+Azure Portal: [Link]
+
+Questions? Contact: [DevOps Team]
+```
+
+**Failed Deployment:**
+```markdown
+Subject: ⚠️ [ENV] Deployment FAILED - Cloud Health Office Release X.Y.Z
+
+Team,
+
+The [ENV] deployment has failed. Rollback procedures have been initiated.
+
+**Deployment Summary:**
+- Release Version: X.Y.Z
+- Environment: [UAT/PROD]
+- Failed at: [Timestamp]
+- Error: [Brief error description]
+
+**Immediate Actions Taken:**
+- [ ] Rollback initiated
+- [ ] Incident created: [Incident ID]
+- [ ] On-call team notified
+- [ ] Previous version restored
+
+**Impact:**
+[Description of any service impact]
+
+**Root Cause:**
+[Under investigation / Known issue description]
+
+**Resolution Plan:**
+[Plan to fix and redeploy]
+
+**Status:**
+Current environment status: [Online/Degraded]
+Expected resolution: [Timeframe]
+
+For real-time updates: [Slack channel / Status page]
+
+Questions? Contact: [Incident Commander / DevOps Lead]
+```
+
+#### Emergency Deployment Procedures
+
+For critical hotfixes requiring expedited approval:
+
+**Emergency Deployment Criteria:**
+- Production system is down or severely degraded
+- Security vulnerability requiring immediate patching
+- Data integrity issue causing incorrect results
+- HIPAA compliance violation
+
+**Emergency Approval Process:**
+
+1. **Initiate Emergency Deployment:**
+   ```bash
+   # Tag commit as emergency
+   git tag -a emergency-vX.Y.Z-hotfix -m "Emergency: [Brief description]"
+   git push origin emergency-vX.Y.Z-hotfix
+   ```
+
+2. **Notify Emergency Contacts:**
+   - On-call DevOps Lead
+   - Application Owner
+   - Compliance Officer (if HIPAA-related)
+
+3. **Expedited Approval:**
+   - Requires 2 approvers from emergency contact list
+   - Must document reason in approval comment
+   - Maximum approval time: 30 minutes
+
+4. **Post-Deployment:**
+   - Immediate health check verification
+   - Create post-mortem within 24 hours
+   - Document lessons learned
+   - Update runbooks if needed
+
+**Emergency Contact List:**
+```
+Primary On-Call: [Name] - [Phone] - [Email]
+Secondary On-Call: [Name] - [Phone] - [Email]
+DevOps Manager: [Name] - [Phone] - [Email]
+Application Owner: [Name] - [Phone] - [Email]
+Compliance Officer: [Name] - [Phone] - [Email]
+```
+
+#### Integration with Ticketing Systems
+
+**Link Deployments to Change Management:**
+
+> **Note:** The following change ticket validation is a recommended enhancement not currently implemented in the workflows. Teams can add this validation as needed based on their change management requirements.
+
+**Optional Workflow Enhancement:**
+
+```yaml
+# Example: Add to deployment workflow as a validation step
+- name: Validate Change Ticket
+  run: |
+    TICKET_NUMBER="${{ github.event.head_commit.message }}" | grep -oP 'CHG\d+' || true
+    if [ -z "$TICKET_NUMBER" ]; then
+      echo "::error::No change ticket found in commit message"
+      echo "Format: 'CHG12345: Description'"
+      exit 1
+    fi
+    echo "Change ticket: $TICKET_NUMBER"
+    # Optional: Validate ticket is approved
+    # Call ticketing system API to verify status
+```
+
+**Recommended Commit Message Format:**
+```
+CHG12345: Deploy HIPAA 275 processing enhancements
+
+- Added retry logic for claims backend API calls
+- Updated X12 schema validation
+- Fixed Service Bus connection handling
+
+Approved-by: [Approver Name]
+Tested-in: UAT
+```
+
+## Pre-Deployment Validation
+
+**ALWAYS validate before deploying to any environment.**
+
+### 1. Validate Argo Workflow YAML Manifests
+
+```bash
+cd /path/to/cloudhealthoffice
+
+# Validate all Argo workflow YAML files
+WF_PATH="infrastructure/argo-workflows"
+failed=0
+
+for f in "$WF_PATH"/*.yaml; do
+  echo "Checking $f"
+
+  # Check YAML syntax
+  if ! python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null; then
+    echo "ERROR: Invalid YAML in $f"
+    failed=1
+    continue
+  fi
+
+  # Dry-run against Kubernetes API (requires kubectl access)
+  if kubectl apply --dry-run=client -f "$f" >/dev/null 2>&1; then
+    echo "✓ Valid: $f"
+  else
+    echo "WARNING: kubectl dry-run failed for $f (may require CRDs)"
+  fi
+done
+
+if [ $failed -eq 0 ]; then
+  echo "All Argo workflow manifests validated successfully"
+else
+  echo "Validation failed"
+  exit 1
+fi
+```
+
+**Expected Output:**
+```
+Checking infrastructure/argo-workflows/claims-adjudication-workflow.yaml
+✓ Valid: infrastructure/argo-workflows/claims-adjudication-workflow.yaml
+All Argo workflow manifests validated successfully
+```
+
+### 2. Validate Bicep Templates
+
+```bash
+# Compile main infrastructure template
+az bicep build --file infra/main.bicep --outfile /tmp/arm.json
+
+# Check output file was created
+if [ -s /tmp/arm.json ]; then
+  echo "✅ Bicep validation successful"
+  echo "ARM template size: $(wc -c < /tmp/arm.json) bytes"
+else
+  echo "❌ Bicep validation failed"
+  exit 1
+fi
+```
+
+**Expected Output:**
+```
+✅ Bicep validation successful
+ARM template size: 4523 bytes
+```
+
+**Expected Warnings (safe to ignore):**
+```
+Warning use-parent-property: Use a reference to the parent resource instead of repeating name/type
+```
+
+### 3. Validate PowerShell Scripts
+
+```bash
+# Validate all PowerShell scripts
+for script in *.ps1; do
+  echo "Validating $script"
+  pwsh -Command "Get-Content './$script' | Out-Null"
+  if [ $? -eq 0 ]; then
+    echo "✓ Valid: $script"
+  else
+    echo "✗ Invalid: $script"
+    exit 1
+  fi
+done
+
+echo "✅ All PowerShell scripts validated"
+```
+
+### 4. Validate Argo Workflow Manifests Against Cluster
+
+```bash
+# Dry-run all Argo workflow manifests against the AKS cluster
+for f in infrastructure/argo-workflows/*.yaml; do
+  echo "Validating $f against cluster..."
+  kubectl apply --dry-run=server -f "$f"
+done
+
+echo "All Argo workflow manifests validated"
+```
+
+**Expected Output:**
+```
+Validating infrastructure/argo-workflows/claims-adjudication-workflow.yaml against cluster...
+workflow.argoproj.io/claims-adjudication-workflow configured (dry run)
+All Argo workflow manifests validated
+```
+
+### 5. Run Repository Structure Check
+
+```bash
+# Normalize repository structure
+pwsh -c "./fix_repo_structure.ps1 -RepoRoot ."
+
+# Verify output
+echo "✅ Repository structure validated"
+```
+
+## Argo Workflow Deployment
+
+This section details the process for deploying Argo Workflow manifests to AKS after infrastructure is in place. Argo Workflows replaced Azure Logic Apps for EDI orchestration. See [docs/adr/004-remove-logic-apps.md](../adr/004-remove-logic-apps.md) for the decision record.
+
+### Workflow Manifest Structure
+
+Argo Workflow YAML manifests live in `infrastructure/argo-workflows/`:
+
+```
+infrastructure/argo-workflows/
+└── claims-adjudication-workflow.yaml   # 7-step DAG calling C# adjudication endpoint
+```
+
+The claims adjudication workflow is a DAG with these steps:
+1. Receive claim
+2. NCCI/MUE edits (pre-pricing scrub)
+3. Rate resolution (fee schedule)
+4. Benefit calculation
+5. Adjudicate (combined endpoint)
+6. Payment processing
+7. ERA/835 generation
+
+### Deploying Argo Workflows
+
+#### Prerequisites
+
+Before deploying workflows:
+
+- [ ] AKS cluster is running and accessible via `kubectl`
+- [ ] Argo Workflows controller is installed on the cluster
+- [ ] Kubernetes secrets/ConfigMaps are configured for service endpoints
+- [ ] `.NET microservices are deployed to AKS
+
+#### Deployment Process
+
+**Step 1: Verify AKS Cluster Access**
+
+```bash
+# Verify kubectl is connected to the correct cluster
+kubectl config current-context
+kubectl get nodes
+
+# Verify Argo Workflows controller is running
+kubectl get pods -n argo -l app=workflow-controller
+```
+
+**Step 2: Apply Argo Workflow Manifests**
+
+```bash
+# Apply all Argo workflow manifests
+kubectl apply -f infrastructure/argo-workflows/
+
+# Check deployment status
+if [ $? -eq 0 ]; then
+  echo "Argo workflows deployed successfully"
+else
+  echo "Argo workflow deployment failed"
+  exit 1
+fi
+```
+
+**Step 3: Verify Workflow Deployment**
+
+```bash
+# List deployed Argo workflow templates
+argo template list -n cloudhealthoffice
+
+# Submit a dry-run to verify the workflow is valid
+argo submit --dry-run infrastructure/argo-workflows/claims-adjudication-workflow.yaml
+```
+
+### Workflow Deployment via GitHub Actions
+
+The `deploy-azure-aks.yml` workflow automatically handles Argo manifest deployment:
+
+```yaml
+- name: Deploy Argo Workflow manifests
+  run: |
+    az aks get-credentials \
+      --resource-group "${{ env.RESOURCE_GROUP }}" \
+      --name "${{ env.AKS_CLUSTER_NAME }}"
+    kubectl apply -f infrastructure/argo-workflows/
+    echo "Argo workflows deployed"
+```
+
+### Troubleshooting Workflow Deployment
+
+#### Issue: "error: the server doesn't have a resource type 'Workflow'"
+
+**Cause**: Argo Workflows CRDs not installed on the cluster
+
+**Solution**:
+```bash
+# Install Argo Workflows CRDs
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/latest/download/quick-start-minimal.yaml
+```
+
+#### Issue: Workflow steps failing at runtime
+
+**Cause**: Service endpoints or Kubernetes secrets misconfigured
+
+**Solution**:
+```bash
+# Check ConfigMaps for correct service URLs
+kubectl get configmap -n cloudhealthoffice
+
+# Check secrets exist
+kubectl get secrets -n cloudhealthoffice
+
+# View Argo workflow logs
+argo logs <workflow-name> -n cloudhealthoffice
+```
+
+#### Issue: Workflow not triggering
+
+**Cause**: Event source or sensor not configured
+
+**Solution**:
+1. Verify the Argo event source is running
+2. Check sensor configuration matches expected events
+3. Review Argo server UI for workflow status
+
+### Workflow Deployment Timeline
+
+| Step | Duration | Description |
+|------|----------|-------------|
+| **kubectl apply** | 5-10 seconds | Apply YAML manifests to cluster |
+| **CRD validation** | 5-10 seconds | Kubernetes validates the resources |
+| **Controller pickup** | 10-30 seconds | Argo controller registers new workflows |
+| **Total** | **~30 seconds** | Complete workflow deployment |
+
+### Best Practices
+
+- Always validate YAML manifests with `kubectl apply --dry-run=client` before deploying
+- Use `argo submit --dry-run` to verify workflow DAG structure
+- Check Application Insights for service-level errors after deployment
+- Keep previous manifest versions in git for rollback
+- Never deploy during peak hours without testing
+- Never skip validation steps  
+
+## Environment Deployment
+
+### DEV Environment
+
+**Trigger:** Manual workflow dispatch or push to `main` branch
+
+**Configuration:**
+- Resource Group: `payer-attachments-dev-rg`
+- Base Name: `hipaa-attachments-dev`
+- Location: `eastus`
+- Branch: `main`
+
+#### Manual Deployment (CLI)
+
+```bash
+# Set variables
+RG_NAME="payer-attachments-dev-rg"
+LOCATION="eastus"
+BASE_NAME="hipaa-attachments-dev"
+
+# Login to Azure
+az login
+
+# Set subscription
+az account set --subscription "$AZURE_SUBSCRIPTION_ID_DEV"
+
+# Create resource group
+az group create \
+  --name "$RG_NAME" \
+  --location "$LOCATION"
+
+# Deploy infrastructure
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file infra/main.bicep \
+  --parameters baseName="$BASE_NAME" \
+  --parameters location="$LOCATION" \
+  --verbose
+
+# Deploy Argo workflow manifests to AKS
+az aks get-credentials --resource-group "$RG_NAME" --name "${BASE_NAME}-aks"
+kubectl apply -f infrastructure/argo-workflows/
+
+echo "DEV deployment complete"
+```
+
+#### GitHub Actions Deployment
+
+1. Go to GitHub → Actions → "Deploy DEV Environment"
+2. Click "Run workflow"
+3. Select branch: `main`
+4. Provide parameters (or use defaults)
+5. Click "Run workflow"
+
+**Monitor deployment:**
+- Check GitHub Actions logs for progress
+- Estimated time: 5-10 minutes
+
+### UAT Environment
+
+**Trigger:** Automatic on push to `release/*` branches
+
+**Configuration:**
+- Resource Group: `payer-attachments-uat-rg`
+- Base Name: `hipaa-attachments-uat`
+- Location: `eastus`
+- Branch: `release/*`
+
+#### Automatic Deployment
+
+```bash
+# Create release branch
+git checkout -b release/v1.0.0
+
+# Make final changes if needed
+git add .
+git commit -m "Prepare v1.0.0 release"
+
+# Push to trigger UAT deployment
+git push origin release/v1.0.0
+```
+
+**The UAT deployment workflow automatically:**
+1. Validates Argo workflow YAML and Bicep templates
+2. Runs ARM What-If analysis
+3. Deploys infrastructure via Bicep
+4. Deploys microservices to AKS
+5. Applies Argo Workflow manifests via kubectl
+6. Performs health checks
+
+**Monitor deployment:**
+- GitHub Actions tab shows workflow progress
+- Estimated time: 10-15 minutes
+
+#### Manual UAT Deployment (if needed)
+
+```bash
+RG_NAME="payer-attachments-uat-rg"
+LOCATION="eastus"
+BASE_NAME="hipaa-attachments-uat"
+
+az group create --name "$RG_NAME" --location "$LOCATION"
+
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file infra/main.bicep \
+  --parameters baseName="$BASE_NAME" \
+  --parameters location="$LOCATION"
+
+az aks get-credentials --resource-group "$RG_NAME" --name "${BASE_NAME}-aks"
+kubectl apply -f infrastructure/argo-workflows/
+```
+
+### PROD Environment
+
+**Trigger:** Manual workflow dispatch only (requires approval)
+
+**Configuration:**
+- Resource Group: `payer-attachments-prod-rg`
+- Base Name: `hipaa-attachments-prod`
+- Location: `eastus`
+- Branch: `main` (after UAT validation)
+
+#### Production Deployment Checklist
+
+Before deploying to production:
+
+- [ ] UAT deployment successful and tested
+- [ ] All validation checks pass
+- [ ] Security review completed
+- [ ] Change management ticket approved
+- [ ] Backup of current production verified
+- [ ] Rollback plan documented
+- [ ] Stakeholders notified of deployment window
+- [ ] Maintenance window scheduled (if needed)
+
+#### GitHub Actions Deployment
+
+1. Ensure all UAT tests pass
+2. Merge release branch to main (if applicable)
+3. Go to GitHub → Actions → "Deploy PROD Environment"
+4. Click "Run workflow"
+5. Select branch: `main`
+6. Review deployment plan
+7. Click "Run workflow"
+8. **Approval required** - designated approvers will review
+9. Monitor deployment progress
+
+**Production deployment includes:**
+- Pre-deployment health check
+- ARM What-If analysis review
+- Infrastructure deployment
+- Argo Workflow manifest deployment to AKS
+- Post-deployment verification
+- Automated health checks
+
+#### Manual PROD Deployment
+
+```bash
+RG_NAME="payer-attachments-prod-rg"
+LOCATION="eastus"
+BASE_NAME="hipaa-attachments-prod"
+
+# IMPORTANT: Review What-If before deploying
+az deployment group what-if \
+  --resource-group "$RG_NAME" \
+  --template-file infra/main.bicep \
+  --parameters baseName="$BASE_NAME" \
+  --parameters location="$LOCATION"
+
+# After reviewing What-If output, proceed with deployment
+read -p "Proceed with deployment? (yes/no): " confirm
+if [ "$confirm" != "yes" ]; then
+  echo "Deployment cancelled"
+  exit 0
+fi
+
+az group create --name "$RG_NAME" --location "$LOCATION"
+
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file infra/main.bicep \
+  --parameters baseName="$BASE_NAME" \
+  --parameters location="$LOCATION"
+
+az aks get-credentials --resource-group "$RG_NAME" --name "${BASE_NAME}-aks"
+kubectl apply -f infrastructure/argo-workflows/
+
+echo "PROD deployment complete"
+```
+
+## Post-Deployment Configuration
+
+After successful deployment, complete these manual configuration steps:
+
+### 0. Security Hardening Deployment (Recommended for Production)
+
+For production PHI workloads, deploy comprehensive security controls to achieve HIPAA compliance:
+
+#### Security Score Impact
+- **Before**: 7/10 (Basic security)
+- **After**: 9/10 target posture (requires environment validation before PHI)
+
+#### Deploy Security Modules
+
+```bash
+# Set variables
+RG_NAME="payer-attachments-prod-rg"
+BASE_NAME="hipaa-attachments-prod"
+LOCATION="eastus"
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# 1. Deploy Azure Key Vault (Premium with HSM)
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file infra/modules/keyvault.bicep \
+  --parameters keyVaultName="${BASE_NAME}-kv" \
+                location="$LOCATION" \
+                skuName="premium" \
+                enableRbacAuthorization=true \
+                enableSoftDelete=true \
+                softDeleteRetentionInDays=90 \
+                enablePurgeProtection=true \
+                publicNetworkAccess="Disabled"
+
+echo "✅ Key Vault deployed with HSM-backed keys"
+
+# 2. Deploy Networking (VNet and Private DNS Zones)
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file infra/modules/networking.bicep \
+  --parameters vnetName="${BASE_NAME}-vnet" \
+                location="$LOCATION" \
+                vnetAddressPrefix="10.0.0.0/16" \
+                aksSubnetPrefix="10.0.1.0/24" \
+                privateEndpointsSubnetPrefix="10.0.2.0/24"
+
+echo "✅ VNet and Private DNS zones deployed"
+
+# 3. Get resource IDs for private endpoints
+STORAGE_NAME=$(az storage account list -g "$RG_NAME" --query "[0].name" -o tsv)
+STORAGE_ID=$(az storage account show --name "$STORAGE_NAME" -g "$RG_NAME" --query id -o tsv)
+SERVICE_BUS_ID=$(az servicebus namespace show --name "${BASE_NAME}-svc" -g "$RG_NAME" --query id -o tsv)
+KEY_VAULT_ID=$(az keyvault show --name "${BASE_NAME}-kv" -g "$RG_NAME" --query id -o tsv)
+
+# Get subnet and DNS zone IDs
+PRIVATE_SUBNET_ID=$(az network vnet subnet show \
+  --resource-group "$RG_NAME" \
+  --vnet-name "${BASE_NAME}-vnet" \
+  --name "private-endpoints-subnet" \
+  --query id -o tsv)
+
+# Dynamically determine the storage DNS zone name (matches networking.bicep logic)
+STORAGE_DNS_ZONE_NAME=$(az network private-dns zone list --resource-group "$RG_NAME" --query "[?starts_with(name, 'privatelink.blob.core')].name" -o tsv)
+STORAGE_DNS_ZONE_ID=$(az network private-dns zone show \
+  --resource-group "$RG_NAME" \
+  --name "$STORAGE_DNS_ZONE_NAME" \
+  --query id -o tsv)
+
+SERVICE_BUS_DNS_ZONE_ID=$(az network private-dns zone show \
+  --resource-group "$RG_NAME" \
+  --name "privatelink.servicebus.windows.net" \
+  --query id -o tsv)
+
+KEY_VAULT_DNS_ZONE_ID=$(az network private-dns zone show \
+  --resource-group "$RG_NAME" \
+  --name "privatelink.vaultcore.azure.net" \
+  --query id -o tsv)
+
+# 4. Deploy Private Endpoints
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file infra/modules/private-endpoints.bicep \
+  --parameters subnetId="$PRIVATE_SUBNET_ID" \
+                storageAccountId="$STORAGE_ID" \
+                storageAccountName="$STORAGE_NAME" \
+                serviceBusId="$SERVICE_BUS_ID" \
+                serviceBusName="${BASE_NAME}-svc" \
+                keyVaultId="$KEY_VAULT_ID" \
+                keyVaultName="${BASE_NAME}-kv" \
+                storageDnsZoneId="$STORAGE_DNS_ZONE_ID" \
+                serviceBusDnsZoneId="$SERVICE_BUS_DNS_ZONE_ID" \
+                keyVaultDnsZoneId="$KEY_VAULT_DNS_ZONE_ID"
+
+echo "✅ Private endpoints deployed - all resources isolated from public internet"
+
+# 5. Enable VNet Integration for AKS
+# AKS nodes run in the VNet; ensure the node subnet is configured
+echo "AKS nodes already run within the VNet via the AKS subnet configuration"
+
+# 6. Disable Public Access
+az storage account update --name "$STORAGE_NAME" -g "$RG_NAME" --public-network-access Disabled
+az servicebus namespace update --name "${BASE_NAME}-svc" -g "$RG_NAME" --public-network-access Disabled
+
+echo "✅ Public access disabled on all PHI resources"
+
+# 7. Configure Key Vault RBAC for AKS workload identity
+AKS_IDENTITY=$(az aks show -g "$RG_NAME" --name "${BASE_NAME}-aks" --query "identityProfile.kubeletidentity.objectId" -o tsv)
+az role assignment create \
+  --assignee "$AKS_IDENTITY" \
+  --role "Key Vault Secrets User" \
+  --scope "$KEY_VAULT_ID"
+
+echo "AKS workload identity granted Key Vault access"
+
+# 8. Apply Data Lifecycle Policies
+cat > lifecycle-policy.json <<'EOF'
+{
+  "rules": [
+    {
+      "name": "move-to-cool-after-30-days",
+      "enabled": true,
+      "type": "Lifecycle",
+      "definition": {
+        "actions": {
+          "baseBlob": {"tierToCool": {"daysAfterModificationGreaterThan": 30}}
+        },
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["hipaa-attachments/raw/"]
+        }
+      }
+    },
+    {
+      "name": "move-to-archive-after-90-days",
+      "enabled": true,
+      "type": "Lifecycle",
+      "definition": {
+        "actions": {
+          "baseBlob": {"tierToArchive": {"daysAfterModificationGreaterThan": 90}}
+        },
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["hipaa-attachments/raw/"]
+        }
+      }
+    },
+    {
+      "name": "delete-after-7-years",
+      "enabled": true,
+      "type": "Lifecycle",
+      "definition": {
+        "actions": {
+          "baseBlob": {"delete": {"daysAfterModificationGreaterThan": 2555}}
+        },
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["hipaa-attachments/raw/"]
+        }
+      }
+    }
+  ]
+}
+EOF
+
+az storage account management-policy create \
+  --account-name "$STORAGE_NAME" \
+  --resource-group "$RG_NAME" \
+  --policy @lifecycle-policy.json
+
+echo "✅ Data lifecycle policies applied (Cool→30d, Archive→90d, Delete→7yr)"
+
+echo ""
+echo "🎉 Security hardening deployment complete!"
+echo ""
+echo "Next steps:"
+echo "1. Migrate secrets to Key Vault (see DEPLOYMENT-SECRETS-SETUP.md § Azure Key Vault Secret Migration)"
+echo "2. Update Kubernetes secrets to reference Key Vault via CSI driver"
+echo "3. Configure PHI masking in Application Insights"
+echo "4. Enable Azure AD authentication for replay278 endpoint"
+echo "5. Review SECURITY-HARDENING.md for additional security controls"
+```
+
+#### Verify Security Deployment
+
+```bash
+# Verify private endpoints
+az network private-endpoint list -g "$RG_NAME" --query "[].{Name:name, State:provisioningState}" -o table
+
+# Verify AKS VNet integration
+az aks show -g "$RG_NAME" --name "${BASE_NAME}-aks" --query "agentPoolProfiles[].vnetSubnetId" -o table
+
+# Verify Key Vault configuration
+az keyvault show --name "${BASE_NAME}-kv" --query "{SKU:properties.sku.name, RBAC:properties.enableRbacAuthorization, SoftDelete:properties.enableSoftDelete, PurgeProtection:properties.enablePurgeProtection}"
+
+# Verify public access disabled
+az storage account show --name "$STORAGE_NAME" --query "publicNetworkAccess"
+az servicebus namespace show --name "${BASE_NAME}-svc" --query "publicNetworkAccess"
+
+# Expected: All show "Disabled"
+```
+
+#### Security Documentation References
+
+For detailed security implementation guidance:
+- **[SECURITY-HARDENING.md](SECURITY-HARDENING.md)** - 400+ line comprehensive security guide
+- **[docs/HIPAA-COMPLIANCE-MATRIX.md](docs/HIPAA-COMPLIANCE-MATRIX.md)** - Complete HIPAA technical safeguards mapping
+- **[DEPLOYMENT-SECRETS-SETUP.md](DEPLOYMENT-SECRETS-SETUP.md)** - Key Vault secret migration procedures
+
+### 1. Configure Kubernetes Secrets and ConfigMaps
+
+Service configuration is managed through Kubernetes secrets and ConfigMaps rather than Logic App API connections. X12 EDI processing is now handled natively by .NET microservices (e.g., `Edi270Parser`, `Edi271Generator`, `EraGeneratorService`).
+
+```bash
+# Verify required secrets exist in the cluster
+kubectl get secrets -n cloudhealthoffice
+
+# Verify ConfigMaps for service configuration
+kubectl get configmap -n cloudhealthoffice
+```
+
+**Configure these secrets (if not already created):**
+
+#### SFTP Credentials
+```bash
+kubectl create secret generic sftp-credentials \
+  --namespace cloudhealthoffice \
+  --from-literal=SFTP_HOST="<clearinghouse-sftp-hostname>" \
+  --from-literal=SFTP_USERNAME="<service-account-username>" \
+  --from-literal=SFTP_PASSWORD="<password-or-key>"
+```
+
+#### Storage and Service Bus
+```bash
+# These are typically configured via Kubernetes workload identity
+# binding to Azure managed identities, not stored as secrets
+kubectl get serviceaccount -n cloudhealthoffice
+```
+
+### 2. Configure Service Endpoints via ConfigMap
+
+```bash
+kubectl create configmap service-config \
+  --namespace cloudhealthoffice \
+  --from-literal=SFTP_INBOUND_FOLDER="/inbound/attachments" \
+  --from-literal=BLOB_RAW_FOLDER="hipaa-attachments/raw/275" \
+  --from-literal=BLOB_RAW_FOLDER_278="hipaa-attachments/raw/278" \
+  --from-literal=SB_TOPIC="attachments-in" \
+  --from-literal=SB_TOPIC_RFAI="rfai-requests" \
+  --from-literal=SB_TOPIC_EDI278="edi-278" \
+  --from-literal=BACKEND_BASE_URL="https://claims-backend-api-uat.example.com" \
+  --from-literal=X12_SENDER_ID_CLEARINGHOUSE="030240928" \
+  --from-literal=X12_RECEIVER_ID_PAYER="{config.payerId}"
+```
+
+### 3. Assign AKS Workload Identity Permissions
+
+Grant AKS workload identity access to Azure resources:
+
+```bash
+RG_NAME="payer-attachments-uat-rg"
+BASE_NAME="hipaa-attachments-uat"
+
+# Get AKS kubelet identity principal ID
+PRINCIPAL_ID=$(az aks show \
+  --resource-group "$RG_NAME" \
+  --name "${BASE_NAME}-aks" \
+  --query "identityProfile.kubeletidentity.objectId" -o tsv)
+
+echo "AKS Workload Identity Principal ID: $PRINCIPAL_ID"
+
+# Assign Storage Blob Data Contributor role
+STORAGE_ACCOUNT="${BASE_NAME}storage"
+STORAGE_ID=$(az storage account show \
+  --name "$STORAGE_ACCOUNT" \
+  --resource-group "$RG_NAME" \
+  --query id -o tsv)
+
+az role assignment create \
+  --assignee "$PRINCIPAL_ID" \
+  --role "Storage Blob Data Contributor" \
+  --scope "$STORAGE_ID"
+
+echo "✓ Storage Blob Data Contributor role assigned"
+
+# Assign Service Bus Data Sender role
+SB_NAMESPACE="${BASE_NAME}-svc"
+SB_ID=$(az servicebus namespace show \
+  --name "$SB_NAMESPACE" \
+  --resource-group "$RG_NAME" \
+  --query id -o tsv)
+
+az role assignment create \
+  --assignee "$PRINCIPAL_ID" \
+  --role "Azure Service Bus Data Sender" \
+  --scope "$SB_ID"
+
+echo "✓ Azure Service Bus Data Sender role assigned"
+
+# Verify role assignments
+az role assignment list \
+  --assignee "$PRINCIPAL_ID" \
+  --output table
+
+echo "✅ All role assignments complete"
+```
+
+### 5. Configure Replay278 Endpoint
+
+The replay278 workflow provides an HTTP endpoint for transaction replay:
+
+1. Navigate to Logic App → Workflows → replay278
+2. Click on workflow to open
+3. Go to "Trigger history" or "Overview"
+4. Copy the HTTP POST URL (looks like):
+   ```
+   https://{logic-app-name}.azurewebsites.net/api/replay278/triggers/HTTP_Replay_278_Request/invoke?api-version=...&sig=...
+   ```
+5. **IMPORTANT:** Configure authentication:
+   - Add API key or OAuth authentication
+   - Do NOT leave anonymous in production
+6. Test endpoint:
+   ```bash
+   curl -X POST "https://{url}" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "blobUrl": "hipaa-attachments/raw/278/2024/01/15/test.edi",
+       "fileName": "replay-test"
+     }'
+   ```
+
+### 6. Verify Service Bus Topics
+
+```bash
+# List topics
+az servicebus topic list \
+  --resource-group "$RG_NAME" \
+  --namespace-name "$SB_NAMESPACE" \
+  --output table
+
+# Expected topics:
+# - attachments-in
+# - rfai-requests
+# - edi-278
+
+# Check topic properties
+az servicebus topic show \
+  --resource-group "$RG_NAME" \
+  --namespace-name "$SB_NAMESPACE" \
+  --name "attachments-in"
+```
+
+### 7. Configure ECS (Enhanced Claim Status) Integration
+
+**Note**: This step is only required if ECS is enabled in your deployment (`enableEcs: true`).
+
+#### 7.1 Store claims backend API Token in Key Vault
+
+**Security Best Practice**: Always store API tokens in Azure Key Vault.
+
+```bash
+# Environment variables
+RG_NAME="payer-attachments-uat-rg"
+BASE_NAME="hipaa-attachments-uat"
+LOGIC_APP_NAME="${BASE_NAME}-la"
+KV_NAME="${BASE_NAME}-kv"
+CLAIMS_BACKEND_API_TOKEN="<your-backend-token>"  # Obtain from claims backend administrator
+
+# Create Key Vault (if not exists)
+az keyvault create \
+  --name "$KV_NAME" \
+  --resource-group "$RG_NAME" \
+  --location eastus
+
+# Store claims backend API token
+az keyvault secret set \
+  --vault-name "$KV_NAME" \
+  --name "claims-backend-api-token" \
+  --value "$CLAIMS_BACKEND_API_TOKEN"
+
+# Grant Logic App access to Key Vault
+PRINCIPAL_ID=$(az webapp identity show \
+  --resource-group "$RG_NAME" \
+  --name "$LOGIC_APP_NAME" \
+  --query principalId -o tsv)
+
+az keyvault set-policy \
+  --name "$KV_NAME" \
+  --object-id "$PRINCIPAL_ID" \
+  --secret-permissions get list
+
+echo "✓ ECS Key Vault configuration complete"
+```
+
+#### 7.2 Configure ECS App Settings
+
+```bash
+# Get Key Vault secret URI
+SECRET_URI=$(az keyvault secret show \
+  --vault-name "$KV_NAME" \
+  --name "claims-backend-api-token" \
+  --query id -o tsv)
+
+# Set environment-specific claims backend base URL
+claims backend_BASE_URL="https://claims-backend-api-uat.example.com"  # Adjust for DEV/UAT/PROD
+
+# Update Logic App settings
+az webapp config appsettings set \
+  --resource-group "$RG_NAME" \
+  --name "$LOGIC_APP_NAME" \
+  --settings \
+    "ECS_BACKEND_BASE_URL=$claims backend_BASE_URL" \
+    "ECS_CLAIMS_BACKEND_API_TOKEN=@Microsoft.KeyVault(SecretUri=${SECRET_URI})" \
+    "ECS_WORKFLOW_ENABLED=true"
+
+echo "✓ ECS application settings configured"
+```
+
+#### 7.3 Test ECS Endpoint
+
+```bash
+# Get ECS endpoint URL
+LOGIC_APP_URL=$(az webapp show \
+  --resource-group "$RG_NAME" \
+  --name "$LOGIC_APP_NAME" \
+  --query defaultHostName -o tsv)
+
+ECS_ENDPOINT="https://${LOGIC_APP_URL}/api/ecs_summary_search/triggers/HTTP_ECS_Summary_Search_Request/invoke"
+
+echo "ECS Endpoint: $ECS_ENDPOINT"
+
+# Test with sample request (requires valid JWT token from Azure AD)
+# Replace YOUR_JWT_TOKEN with actual token
+curl -X POST \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "searchMethod": "ServiceDate",
+    "requestId": "TEST-001",
+    "serviceDateSearch": {
+      "serviceFromDate": "20240101",
+      "serviceToDate": "20240131",
+      "providerId": "1234567890",
+      "providerIdQualifier": "NPI"
+    }
+  }' \
+  "$ECS_ENDPOINT"
+```
+
+**Expected Response**:
+```json
+{
+  "requestId": "TEST-001",
+  "status": "success",
+  "timestamp": "2024-01-15T10:30:45.123Z",
+  "searchMethod": "ServiceDate",
+  "totalResults": 0,
+  "claims": []
+}
+```
+
+**See also**:
+- [ECS-INTEGRATION.md](docs/ECS-INTEGRATION.md) - Complete ECS integration guide
+- [BACKEND-INTERFACE.md](docs/BACKEND-INTERFACE.md) - Backend interface specification
+- [ECS-OPENAPI.yaml](docs/api/ECS-OPENAPI.yaml) - OpenAPI specification
+
+## Verification and Testing
+
+### Post-Deployment Health Checks
+
+Run these checks after deployment:
+
+#### 1. Verify Infrastructure Resources
+
+```bash
+RG_NAME="payer-attachments-uat-rg"
+
+# List all resources
+az resource list \
+  --resource-group "$RG_NAME" \
+  --output table
+
+# Expected resources:
+# - AKS Cluster
+# - Storage Account (Data Lake Gen2)
+# - Service Bus Namespace
+# - Application Insights
+```
+
+#### 2. Verify AKS Cluster and Argo Workflows
+
+```bash
+# Verify AKS cluster is running
+az aks show \
+  --resource-group "$RG_NAME" \
+  --name "${BASE_NAME}-aks" \
+  --query "{name:name, provisioningState:provisioningState, powerState:powerState.code}" \
+  --output table
+
+# Expected: provisioningState=Succeeded, powerState=Running
+
+# Verify Argo workflow templates are deployed
+argo template list -n cloudhealthoffice
+```
+
+#### 3. Test Workflows
+
+```bash
+# Submit a test workflow run
+argo submit infrastructure/argo-workflows/claims-adjudication-workflow.yaml \
+  -n cloudhealthoffice --dry-run
+
+# Verify pods are healthy
+kubectl get pods -n cloudhealthoffice
+```
+
+#### 4. Verify Application Insights
+
+1. Navigate to Application Insights resource
+2. Go to "Live Metrics"
+3. Trigger a test workflow
+4. Verify telemetry is being received
+5. Check for errors or warnings
+
+#### 5. Test Service Connectivity
+
+```bash
+# Verify Kubernetes secrets and ConfigMaps are in place
+kubectl get secrets -n cloudhealthoffice
+kubectl get configmap -n cloudhealthoffice
+
+# Check service endpoints are reachable from within the cluster
+kubectl run test-curl --rm -it --restart=Never --image=curlimages/curl -n cloudhealthoffice \
+  -- curl -s http://benefit-plan-service/health
+```
+
+### Functional Testing
+
+#### Test 275 Ingestion
+
+1. Upload test file to SFTP:
+   ```bash
+   sftp user@clearinghouse-sftp-host
+   cd /inbound/attachments
+   put test-x12-275-clearinghouse-inbound.edi
+   exit
+   ```
+
+2. Monitor workflow execution:
+   - Go to Logic App → Workflows → ingest275 → Runs
+   - Check latest run status
+   - Review run history details
+
+3. Verify Data Lake storage:
+   ```bash
+   az storage blob list \
+     --account-name "${BASE_NAME}storage" \
+     --container-name "hipaa-attachments" \
+     --prefix "raw/275/" \
+     --output table
+   ```
+
+4. Check Service Bus message:
+   ```bash
+   # View messages in topic (requires Service Bus Explorer or code)
+   ```
+
+#### Test 278 Replay
+
+```bash
+# Test replay endpoint
+REPLAY_URL="https://${LOGIC_APP_NAME}.azurewebsites.net/api/replay278/triggers/HTTP_Replay_278_Request/invoke?..."
+
+curl -X POST "$REPLAY_URL" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "blobUrl": "hipaa-attachments/raw/278/2024/01/15/test.edi",
+    "fileName": "replay-test-$(date +%s)"
+  }'
+
+# Expected response: 200 OK with success message
+```
+
+## Rollback Procedures
+
+This section provides comprehensive rollback procedures for different failure scenarios.
+
+### Rollback Strategy Overview
+
+| Failure Type | Severity | Rollback Method | Estimated Time | Data Loss Risk |
+|--------------|----------|-----------------|----------------|----------------|
+| **Argo Workflow Deployment** | Low | Reapply previous YAML manifests | < 1 minute | None |
+| **Single Workflow Issue** | Low | Suspend problematic Argo workflow | < 1 minute | None |
+| **Infrastructure Config** | Medium | Redeploy previous Bicep | 5-10 minutes | None |
+| **Infrastructure Breaking** | High | ARM deployment rollback | 10-15 minutes | Low |
+| **Complete Failure** | Critical | Full resource group restore | 15-30 minutes | Medium |
+
+### Pre-Rollback Checklist
+
+Before initiating rollback:
+
+- [ ] **Identify the failure scope**: Workflow-only vs. infrastructure
+- [ ] **Document the error**: Capture error messages and logs
+- [ ] **Check recent changes**: Review what was deployed
+- [ ] **Assess data risk**: Check if data/messages are in flight
+- [ ] **Notify stakeholders**: Inform team of rollback action
+- [ ] **Have known-good version**: Identify working commit SHA
+
+### Workflow Rollback Procedures
+
+#### Scenario 1: Argo Workflow Deployment Failed (Safest)
+
+**When to use:** `kubectl apply` failed for Argo manifests, infrastructure is intact
+
+```bash
+# Step 1: Verify AKS cluster is healthy
+echo "Checking AKS cluster status..."
+kubectl get nodes
+kubectl get pods -n cloudhealthoffice
+
+# Step 2: Review what is currently deployed
+echo "Checking current Argo workflow templates..."
+argo template list -n cloudhealthoffice
+
+# Step 3: No action needed - previous workflow templates still active
+echo "Infrastructure intact, previous Argo workflows still running"
+echo "Fix YAML manifests and redeploy when ready"
+```
+
+#### Scenario 2: Workflow Causing Runtime Errors
+
+**When to use:** New workflows deployed successfully but causing errors
+
+**Step 1: Identify Previous Working Version**
+
+```bash
+# List recent commits
+git log --oneline -10 infrastructure/argo-workflows/
+
+# Example output:
+# a1b2c3d (HEAD) Update claims adjudication DAG steps
+# d4e5f6g Add retry logic to adjudication workflow
+# g7h8i9j Working version before changes  ← Use this one
+
+PREVIOUS_COMMIT="g7h8i9j"  # Last known good commit
+```
+
+**Step 2: Checkout Previous Workflow Manifests**
+
+```bash
+# Create rollback branch for tracking
+git checkout -b rollback/workflows-$(date +%Y%m%d-%H%M%S)
+
+# Restore previous workflow versions
+git checkout "$PREVIOUS_COMMIT" -- infrastructure/argo-workflows/
+
+# Verify files were restored
+git status
+# Should show modified files in infrastructure/argo-workflows/
+```
+
+**Step 3: Deploy Previous Version**
+
+```bash
+# Apply previous Argo workflow manifests
+echo "Deploying previous workflow version..."
+kubectl apply -f infrastructure/argo-workflows/
+
+echo "Argo workflow rollback complete"
+```
+
+**Step 4: Verify Rollback Success**
+
+```bash
+# List Argo workflow templates
+argo template list -n cloudhealthoffice
+
+# Check pods are healthy
+kubectl get pods -n cloudhealthoffice
+
+# Check Application Insights for recent errors
+echo "Checking for errors in last 5 minutes..."
+AI_NAME="${BASE_NAME}-ai"
+az monitor app-insights query \
+  --app "$AI_NAME" \
+  --resource-group "$RG_NAME" \
+  --analytics-query "traces | where timestamp > ago(5m) and severityLevel >= 3 | summarize count()" \
+  --output table
+```
+
+#### Scenario 3: Suspend Single Problematic Argo Workflow
+
+**When to use:** Only one workflow is problematic, others working fine
+
+```bash
+WORKFLOW_NAME="claims-adjudication-workflow"  # Problem workflow
+
+# Suspend a running Argo workflow
+argo suspend "$WORKFLOW_NAME" -n cloudhealthoffice
+
+# Or stop all running instances
+argo stop "$WORKFLOW_NAME" -n cloudhealthoffice
+
+# To resume later
+argo resume "$WORKFLOW_NAME" -n cloudhealthoffice
+
+echo "Review Argo workflow logs for root cause:"
+echo "  argo logs $WORKFLOW_NAME -n cloudhealthoffice"
+```
+
+### Infrastructure Rollback Procedures
+
+#### Scenario 4: Infrastructure Configuration Change Rollback
+
+**When to use:** Bicep deployment changed configuration but didn't break resources
+
+**Step 1: Identify Previous Working Template**
+
+```bash
+# List recent changes to infrastructure
+git log --oneline -10 infra/
+
+# Example output:
+# x1y2z3a Update Service Bus topic config
+# a2b3c4d Add new storage container
+# d5e6f7g Stable infrastructure  ← Use this one
+
+PREVIOUS_COMMIT="d5e6f7g"
+```
+
+**Step 2: Review What-If for Rollback**
+
+```bash
+# Checkout previous template to temp location
+git show "$PREVIOUS_COMMIT:infra/main.bicep" > /tmp/previous-main.bicep
+
+# Run What-If to see rollback changes
+az deployment group what-if \
+  --resource-group "$RG_NAME" \
+  --template-file /tmp/previous-main.bicep \
+  --parameters baseName="$BASE_NAME" \
+               location="$LOCATION" \
+               sftpHost="$SFTP_HOST" \
+               sftpUsername="$SFTP_USERNAME" \
+               sftpPassword="$SFTP_PASSWORD" \
+               serviceBusName="$SERVICE_BUS_NAME" \
+               iaName="$IA_NAME" \
+               connectorLocation="$CONNECTOR_LOCATION" \
+  --no-pretty-print
+
+# Review output carefully!
+# Look for any resource deletions (-)
+```
+
+**Step 3: Deploy Previous Infrastructure Version**
+
+```bash
+# Create rollback deployment
+DEPLOY_NAME="rollback-infra-$(date +%Y%m%d-%H%M%S)"
+
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file /tmp/previous-main.bicep \
+  --parameters baseName="$BASE_NAME" \
+               location="$LOCATION" \
+               sftpHost="$SFTP_HOST" \
+               sftpUsername="$SFTP_USERNAME" \
+               sftpPassword="$SFTP_PASSWORD" \
+               serviceBusName="$SERVICE_BUS_NAME" \
+               iaName="$IA_NAME" \
+               connectorLocation="$CONNECTOR_LOCATION" \
+  --name "$DEPLOY_NAME" \
+  --verbose
+
+# Monitor deployment
+az deployment group show \
+  --resource-group "$RG_NAME" \
+  --name "$DEPLOY_NAME" \
+  --query "{Name:name, State:properties.provisioningState, Timestamp:properties.timestamp}"
+```
+
+**Step 4: Restart AKS Workloads After Infrastructure Rollback**
+
+```bash
+# Restart deployments to pick up infrastructure changes
+kubectl rollout restart deployment -n cloudhealthoffice
+
+# Wait for rollout to complete
+kubectl rollout status deployment -n cloudhealthoffice --timeout=120s
+
+echo "Infrastructure rollback complete"
+```
+
+#### Scenario 5: Complete Infrastructure Failure (Advanced)
+
+**When to use:** Infrastructure deployment broke critical resources
+
+**⚠️ WARNING: This is a complex rollback. Use only for critical failures.**
+
+**Step 1: Export Current Resource State (if possible)**
+
+```bash
+# Export current deployment for reference
+az group export \
+  --resource-group "$RG_NAME" \
+  --output json > "/tmp/failed-deployment-$(date +%Y%m%d-%H%M%S).json"
+
+# Export AKS workload configuration
+kubectl get deployments,services,configmaps,secrets -n cloudhealthoffice -o yaml > "/tmp/aks-workload-backup.yaml"
+```
+
+**Step 2: List Deployment History**
+
+```bash
+# Show recent deployments
+az deployment group list \
+  --resource-group "$RG_NAME" \
+  --query "reverse(sort_by([].{Name:name, State:properties.provisioningState, Time:properties.timestamp}, &Time))" \
+  --output table
+
+# Identify last successful deployment
+LAST_SUCCESS_DEPLOY="hipaa-infra-deployment-20241115"  # Example
+```
+
+**Step 3: Rollback to Last Successful Deployment**
+
+```bash
+# Get deployment details
+az deployment group show \
+  --resource-group "$RG_NAME" \
+  --name "$LAST_SUCCESS_DEPLOY" \
+  --query "{Template:properties.templateLink, Parameters:properties.parameters}" \
+  --output jsonc > /tmp/last-success-deployment.json
+
+# Export template from successful deployment
+az deployment group export \
+  --resource-group "$RG_NAME" \
+  --name "$LAST_SUCCESS_DEPLOY" \
+  --output json > /tmp/success-template.json
+
+# Redeploy using successful template
+az deployment group create \
+  --resource-group "$RG_NAME" \
+  --template-file /tmp/success-template.json \
+  --name "rollback-to-$LAST_SUCCESS_DEPLOY-$(date +%Y%m%d-%H%M%S)"
+```
+
+#### Scenario 6: Complete Resource Group Restore (NUCLEAR OPTION)
+
+**When to use:** Everything is broken, need clean slate
+
+**⚠️ EXTREME WARNING:**
+- This **DELETES ALL RESOURCES** in the resource group
+- This **LOSES ALL DATA** that isn't backed up
+- **ONLY USE IN DEV/UAT** environments
+- **NEVER USE IN PRODUCTION** without explicit approval and backup verification
+
+```bash
+# FINAL CONFIRMATION
+read -p "⚠️  This will DELETE ALL resources. Type 'DELETE-EVERYTHING' to confirm: " CONFIRM
+if [ "$CONFIRM" != "DELETE-EVERYTHING" ]; then
+  echo "Cancelled. Confirmation text did not match."
+  exit 1
+fi
+
+# Backup before destruction
+echo "Creating final backups..."
+
+# Export resource group
+az group export \
+  --resource-group "$RG_NAME" \
+  --output json > "/tmp/pre-delete-export-$(date +%Y%m%d-%H%M%S).json"
+
+# List resources for record
+az resource list \
+  --resource-group "$RG_NAME" \
+  --output table > "/tmp/pre-delete-resources-$(date +%Y%m%d-%H%M%S).txt"
+
+# Delete resource group
+echo "Deleting resource group: $RG_NAME"
+az group delete \
+  --name "$RG_NAME" \
+  --yes \
+  --no-wait
+
+# Monitor deletion
+echo "Monitoring deletion progress..."
+while az group exists --name "$RG_NAME" | grep -q "true"; do
+  echo "Still deleting... (waiting 30s)"
+  sleep 30
+done
+
+echo "✅ Resource group deleted"
+
+# Redeploy from known good state
+echo "Redeploying from known good configuration..."
+KNOWN_GOOD_COMMIT="<insert-commit-sha>"
+
+git checkout "$KNOWN_GOOD_COMMIT"
+
+# Run full deployment (follow Environment Deployment section)
+az group create --name "$RG_NAME" --location "$LOCATION"
+
+# Deploy infrastructure...
+# Deploy workflows...
+# Configure post-deployment...
+```
+
+### Rollback Verification Checklist
+
+After any rollback, verify:
+
+- [ ] **Infrastructure Resources**
+  ```bash
+  az resource list --resource-group "$RG_NAME" --output table
+  ```
+
+- [ ] **AKS Pods Running**
+  ```bash
+  kubectl get pods -n cloudhealthoffice
+  ```
+
+- [ ] **Argo Workflows Available**
+  ```bash
+  argo template list -n cloudhealthoffice
+  ```
+
+- [ ] **No Recent Errors in App Insights**
+  ```bash
+  az monitor app-insights query --app "$AI_NAME" --analytics-query "traces | where timestamp > ago(10m) and severityLevel >= 3"
+  ```
+
+- [ ] **Service Bus Topics Exist**
+  ```bash
+  az servicebus topic list --resource-group "$RG_NAME" --namespace-name "$SB_NAME"
+  ```
+
+- [ ] **Storage Account Accessible**
+  ```bash
+  az storage account show --name "$STORAGE_NAME" --query provisioningState
+  ```
+
+### Post-Rollback Actions
+
+1. **Document the Incident**
+   - What failed
+   - What was rolled back
+   - Root cause (if known)
+   - Time to resolution
+
+2. **Review Logs**
+   - Application Insights
+   - Azure Activity Log
+   - GitHub Actions logs
+
+3. **Notify Stakeholders**
+   - Inform team of rollback completion
+   - Provide incident summary
+   - Outline plan to prevent recurrence
+
+4. **Plan Forward**
+   - Fix root cause in dev/test
+   - Add validation checks
+   - Update deployment procedures if needed
+
+### Emergency Contacts
+
+**Deployment Issues:**
+- GitHub Actions: Check repository settings → Actions
+- Azure Support: Create support ticket in portal
+- Team Lead: [Contact information]
+
+**Data Recovery:**
+- Backup verification: Check storage account archives
+- Point-in-time restore: Available for critical data
+
+### Rollback Testing
+
+**Regularly test rollback procedures** in DEV environment:
+
+```bash
+# Monthly rollback drill
+# 1. Deploy test change to DEV
+# 2. Immediately roll back
+# 3. Verify system functionality
+# 4. Document any issues with procedure
+# 5. Update this guide based on findings
+```
+
+## Troubleshooting
+
+### Common Deployment Issues
+
+#### Issue: Bicep Deployment Fails
+
+**Symptoms:**
+```
+ERROR: The template deployment failed with error: 'The resource operation completed with terminal provisioning state 'Failed'.'
+```
+
+**Solutions:**
+1. Check Azure Activity Log for detailed error
+2. Verify all parameters are correct
+3. Ensure subscription has available quota
+4. Check for resource name conflicts
+5. Review deployment logs in Azure Portal
+
+**Detailed Diagnostics:**
+```bash
+# Get deployment details
+az deployment group show \
+  --resource-group "$RG_NAME" \
+  --name "<deployment-name>" \
+  --query "properties.error"
+
+# Check activity log
+az monitor activity-log list \
+  --resource-group "$RG_NAME" \
+  --start-time $(date -u -d '1 hour ago' '+%Y-%m-%dT%H:%M:%SZ') \
+  --query "[?level=='Error']"
+```
+
+#### Issue: Argo Workflow Deployment Fails
+
+**Symptoms:**
+- `kubectl apply` fails for Argo manifests
+- CRD validation errors
+- Workflow templates don't appear
+
+**Solutions:**
+1. Verify YAML syntax: `kubectl apply --dry-run=client -f infrastructure/argo-workflows/`
+2. Check Argo CRDs are installed: `kubectl get crd | grep argoproj`
+3. Verify AKS cluster connectivity: `kubectl get nodes`
+4. Review Argo controller logs: `kubectl logs -n argo -l app=workflow-controller`
+
+**Verify manifests:**
+```bash
+kubectl apply --dry-run=client -f infrastructure/argo-workflows/
+# Should show: configured (dry run) for each manifest
+```
+
+#### Issue: Service Connectivity Not Working
+
+**Symptoms:**
+- Argo workflow steps fail with connection errors
+- Services return 5xx errors
+
+**Solutions:**
+1. Verify Kubernetes secrets exist: `kubectl get secrets -n cloudhealthoffice`
+2. Check ConfigMaps have correct values: `kubectl get configmap -n cloudhealthoffice -o yaml`
+3. Verify workload identity has required Azure RBAC permissions
+4. Check service endpoints are reachable from within the cluster
+
+**Test Connectivity:**
+```bash
+# Check service health from within the cluster
+kubectl run test-curl --rm -it --restart=Never --image=curlimages/curl -n cloudhealthoffice \
+  -- curl -s http://benefit-plan-service/health
+```
+
+#### Issue: OIDC Authentication Fails
+
+**Symptoms:**
+```
+ERROR: AADSTS700016: Application with identifier 'xxx' was not found
+```
+
+**Solutions:**
+1. Verify federated credential is created
+2. Check subject matches GitHub repo/branch
+3. Ensure service principal has Contributor role
+4. Verify tenant ID and subscription ID are correct
+
+**Verify OIDC Setup:**
+```bash
+# List federated credentials
+az ad app federated-credential list --id "$APP_ID"
+
+# Check service principal
+az ad sp show --id "$APP_ID"
+
+# Verify role assignments
+az role assignment list --assignee "$APP_ID"
+```
+
+#### Issue: Argo Workflows Not Triggering
+
+**Symptoms:**
+- No workflow runs appearing in Argo UI
+- Events not reaching workflow sensors
+
+**Solutions:**
+1. Check Argo event sources and sensors are running: `kubectl get eventsource,sensor -n cloudhealthoffice`
+2. Verify Kubernetes secrets for credentials are correct
+3. Check AKS pods are running: `kubectl get pods -n cloudhealthoffice`
+4. Review Application Insights for service-level errors
+5. Check Argo workflow controller logs
+
+**Debug Workflows:**
+```bash
+# Check Argo controller logs
+kubectl logs -n argo -l app=workflow-controller --tail=100
+
+# Check recent Argo workflow runs
+argo list -n cloudhealthoffice --status Failed
+
+# View logs for a specific failed workflow
+argo logs <workflow-name> -n cloudhealthoffice
+```
+
+### Getting Help
+
+If issues persist:
+
+1. Review [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed solutions
+2. Check Application Insights for errors and exceptions
+3. Review Azure Activity Log for resource-level errors
+4. Check GitHub Actions logs for CI/CD issues
+5. Open a support ticket with:
+   - Environment (DEV/UAT/PROD)
+   - Error messages and logs
+   - Steps to reproduce
+   - What you've already tried
+
+---
+
+For architecture details, see [ARCHITECTURE.md](ARCHITECTURE.md)  
+For development workflow, see [CONTRIBUTING.md](CONTRIBUTING.md)  
+For security guidelines, see [SECURITY.md](SECURITY.md)

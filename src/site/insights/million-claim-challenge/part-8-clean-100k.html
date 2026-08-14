@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Running a Healthcare Claims Platform Locally in Kubernetes, Part 8: The Clean 100,000-Claim Run | Cloud Health Office</title>
+  <meta name="description" content="How stronger correctness gates reached a clean 100,000-claim run and exposed the next local scaling bottleneck.">
+  <link rel="canonical" href="https://cloudhealthoffice.com/insights/million-claim-challenge/part-8-clean-100k">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Cloud Health Office">
+  <meta property="og:title" content="Running a Healthcare Claims Platform Locally in Kubernetes, Part 8: The Clean 100,000-Claim Run">
+  <meta property="og:description" content="How stronger correctness gates reached a clean 100,000-claim run and exposed the next local scaling bottleneck.">
+  <meta property="og:url" content="https://cloudhealthoffice.com/insights/million-claim-challenge/part-8-clean-100k">
+  <meta property="og:image" content="https://cloudhealthoffice.com/graphics/og-million-claim-challenge.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="/css/sentinel.css">
+  <script src="/js/mobile-nav.js"></script>
+  <style>
+    .publication { max-width: 860px; margin: 0 auto; padding: 64px 24px 96px; }
+    .publication-nav { margin-bottom: 40px; color: #8b949e; }
+    .publication-nav a { color: #00ffff; }
+    .eyebrow { color: #00ff88; font-size: .8rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .publication h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.08; margin: 12px 0 20px; }
+    .publication h2 { margin-top: 52px; color: #00ffff; }
+    .publication p, .publication li { color: #c9d1d9; font-size: 1.05rem; line-height: 1.8; }
+    .publication code { color: #00ff88; background: #111820; padding: .12rem .35rem; border-radius: 4px; }
+    .disclosure { border-left: 4px solid #f0b429; background: rgba(240,180,41,.08); padding: 18px 22px; margin: 30px 0; }
+    .source-note { font-size: .9rem !important; color: #8b949e !important; }
+    .article-links { display: flex; flex-wrap: wrap; gap: 12px; margin: 40px 0; }
+    .article-links a { border: 1px solid rgba(0,255,255,.35); border-radius: 6px; padding: 10px 14px; color: #00ffff; text-decoration: none; }
+    .evidence-block { margin: 28px 0; border: 1px solid rgba(0,255,255,.22); border-radius: 8px; overflow: hidden; }
+    .evidence-block summary { cursor: pointer; padding: 18px 20px; color: #00ffff; font-weight: 700; background: #0d1117; }
+    .evidence-block pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 22px; background: #080c10; color: #c9d1d9; font-size: .84rem; line-height: 1.55; }
+    .article-figure { margin: 40px 0; }
+    .article-figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid rgba(0,255,255,.18); background: #000; }
+    .article-figure figcaption { margin-top: 12px; font-size: .85rem; color: #8b949e; text-align: center; line-height: 1.5; }
+    .table-wrap { margin: 28px 0; overflow-x: auto; border: 1px solid rgba(0,255,255,.22); border-radius: 8px; }
+    .table-wrap table { width: 100%; border-collapse: collapse; font-size: .95rem; font-variant-numeric: tabular-nums; }
+    .table-wrap th, .table-wrap td { padding: 10px 16px; text-align: left; border-bottom: 1px solid rgba(139,148,158,.2); white-space: nowrap; }
+    .table-wrap th { color: #00ffff; font-weight: 700; background: #0d1117; }
+    .table-wrap td { color: #c9d1d9; }
+    .table-wrap tr:last-child td { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <main class="publication">
+    <nav class="publication-nav"><a href="/">Home</a> / <a href="/insights">Insights</a> / <a href="/docs/million-claim-challenge">Million Claim Challenge</a></nav>
+    <div class="eyebrow">Million Claim Challenge · Part 8</div>
+    <h1>Running a Healthcare Claims Platform Locally in Kubernetes, Part 8: The Clean 100,000-Claim Run</h1>
+    <div class="disclosure"><strong>Evidence scope:</strong> This engineering field note describes local Kubernetes development and validation. It is not a production-cloud capacity claim. Exact results and limitations are preserved in the linked evidence artifact.</div>
+    <div class="article-links">
+      <a href="/docs/million-claim-challenge/evidence#episode-008">View evidence</a>
+      <a href="https://github.com/aurelianware/cloudhealthoffice/blob/main/docs/million-claim-challenge/podcast/episode-008/article.txt" target="_blank" rel="noopener noreferrer">View article source</a>
+    </div>
+    <p>Part 7 moved the Million Claim Challenge evidence out of terminal logs and into an operator console.</p>
+<p>Then the correctness bar changed.</p>
+<p>Payment accuracy became a gate instead of a diagnostic. Expected-pay and expected-deny claims were checked for false pends. Zero-limit accumulator placeholders stopped distorting expected payments. Generated members were isolated so one corpus segment could not contaminate another. Validation providers were moved into role-separated synthetic NPI namespaces so scoreable scenarios could not collide with stale provider-integrity state in a long-lived local tenant.</p>
+<p>Then the evidence bar moved again.</p>
+<p>Prior-authorization scenarios that had been partially unsupported became scoreable. Provider-exclusion denial codes were normalized so <code>B7</code>, <code>CARC_B7</code>, and <code>PROVIDER_EXCLUDED</code> represented the same expected business outcome instead of producing false mismatches.</p>
+<p>Only after those changes did Cloud Health Office move back to 100,000 claims.</p>
+<p>The result was clean: every claim processed, no platform failures, no scoreable workflow mismatches, no unexpected pends, and every comparable payment within one cent.</p>
+<p>The run also exposed the next local scaling question. Docker Desktop was not out of CPU or memory, and fixture preparation was no longer a two-hour wall-clock problem. The platform finished timed adjudication in 30 minutes and 5 seconds, with the full tracked lifecycle taking about 38 minutes.</p>
+<p>That is exactly the kind of result this series is supposed to produce: correctness held, the evidence became inspectable, and the next performance question became sharper.</p>
+<h2 id="what-changed-before-100k">What changed before 100K</h2>
+<p>The previous 50K result proved broader outcome scoring, but it still left important questions open.</p>
+<p>A claim could reach the expected paid disposition while paying the wrong amount. Expected-pend claims were observed, but expected-pay and expected-deny claims were not swept for accidental pends. Placeholder accumulator limits could be interpreted as real zero-dollar limits. Reused generated member identities could let fixture state cross scenario boundaries.</p>
+<p>Those are not cosmetic benchmark concerns. They affect whether the answer key and the platform are actually evaluating the same claim context.</p>
+<p>The validator now includes:</p>
+<ul><li>a plan-aligned payment gate with a one-cent tolerance</li><li>a persisted false-pend sweep for scoreable non-pend claims</li><li>corrected zero-limit accumulator handling</li><li>cross-corpus member fixture isolation</li><li>evidence-first claim-result retention</li><li>in-progress run publication and a completed run summary in the console</li></ul>
+<p>Several final hardening passes mattered before the final 100K rerun.</p>
+<p>PR #927 anchored validation providers as run-scoped fixtures. A follow-up 50K verification then found 10 scoreable <code>TxStarInpatientNoAuth</code> mismatches: those claims should have denied for missing prior authorization, but provider-integrity evaluation treated the generated rendering provider as excluded. The current provider record was approved and in-network, which pointed to stale or colliding validation-provider identity state in the long-lived local tenant.</p>
+<p>PR #928 moved scoreable validation providers into wider, role-separated synthetic NPI namespaces: billing providers in the <code>93...</code> range, adjudicatable rendering providers in <code>94...</code>, and intentionally excluded rendering providers in <code>95...</code>.</p>
+<p>Then PR #931 wired prior-authorization validation into adjudication, PR #932 made seeded prior-auth evidence scoreable, and PR #933 fixed the scoring path so expired-authorization and wrong-procedure scenarios could be counted honestly instead of left unsupported. PR #934 normalized provider-exclusion denial codes so <code>B7</code>, <code>CARC_B7</code>, and <code>PROVIDER_EXCLUDED</code> no longer disagreed as labels when they represented the same exclusion outcome.</p>
+<p>The post-#934 50K verification processed 50,000 claims cleanly: 5,927 of 6,500 workflow checks matched, zero workflow mismatches, 460 of 460 expected-pend claims observed, zero unexpected pends across 5,467 scoreable non-pend claims, and 1,000 of 1,000 payment comparisons within tolerance with a $0.00 maximum payment delta.</p>
+<p>That hardened fixture and scoring model is what the final 100K run used.</p>
+<h2 id="the-100k-result">The 100K result</h2>
+<p>The local Docker Desktop Kubernetes run processed 100,000 deterministic synthetic claims with parallelism set to 10.</p>
+<p>The final summary reported:</p>
+<ul><li>100,000 claims processed</li><li>78,842 paid or adjudicated</li><li>924 pended</li><li>20,234 business denials</li><li>0 platform failures</li><li>0 observation timeouts</li><li>11,854 of 13,000 workflow checks matched</li><li>0 workflow mismatches</li><li>1,146 unsupported scenarios</li><li>0 unexpected pends across 10,934 scoreable non-pend claims</li><li>2,000 of 2,000 comparable payments within one cent</li><li>$0.00 average payment delta</li><li>$0.00 maximum payment delta</li></ul>
+<p>The pend numbers have two scopes. The run ended with 924 persisted pended outcomes overall. The validator specifically observed 920 expected-pend claims as pended, then swept 10,934 scoreable expected-pay and expected-deny claims and found zero unexpected pends. That distinction matters because unsupported scenarios remain separate from the scored non-pend set.</p>
+<p>Unsupported scenarios also remained separate from passes and failures. They were concentrated in behavioral-health carve-out, Medicaid spend-down, the prior-authorization wrong-provider variant, retroactive coverage change, and subrogation workflows.</p>
+<p>Those are named product gaps, not hidden successes.</p>
+<h2 id="performance-did-not-saturate-the-machine">Performance did not saturate the machine</h2>
+<p>The timed claim-processing phase completed in 30 minutes and 5.013 seconds.</p>
+<p>That produced:</p>
+<ul><li>55.40 claims per second</li><li>324 ms P95 latency</li><li>480 ms P99 latency</li><li>194 ms P95 submission time</li><li>122 ms P95 adjudication time</li><li>101 ms P95 writeback time</li></ul>
+<p>The provider-pool fixture work changed the local lifecycle story. Earlier 100K preparation had been dominated by run-scoped provider creation. In this run, the validator reduced 199,847 provider references to 13,742 distinct NPIs, reused 186,258 provider assignments, and preserved 2,800 provider-sensitive claims. It created 13,383 synthetic providers instead of trying to create a provider record for every repeated reference.</p>
+<p>That is why the tracked lifecycle was about 38 minutes instead of more than two hours.</p>
+<p>The run still did not scale linearly from smaller benchmarks, and Docker Desktop showed plenty of CPU and memory headroom while the run was active. That points the next investigation away from raw host capacity and toward internal throughput limits: service concurrency, writeback behavior, MongoDB pressure, HTTP client settings, and validator parallelism.</p>
+<p>That is not a production capacity conclusion. It is a local scaling signal worth investigating.</p>
+<h2 id="timed-throughput-and-preparation-are-different">Timed throughput and preparation are different</h2>
+<p>The tracked lifecycle took 38 minutes and 5.792 seconds. The timed adjudication phase took 30 minutes and 5.013 seconds.</p>
+<p>The remaining tracked time was mostly preparation:</p>
+<ul><li>member and coverage seeding: 2:47.051</li><li>provider seeding: 5:04.155</li><li>authorization fixture seeding: 0:00.436</li><li>corpus generation: 0:01.201</li><li>fixture normalization: 0:00.327</li><li>expected-pend observation: 0:00.765</li><li>false-pend sweep: 0:06.644</li></ul>
+<p>The validator seeded 10,614 synthetic members, reused 88,977 existing members, aligned 99,591 member statuses, found 920 COB coverage rows already present, and found both required provider networks already present.</p>
+<p>Both numbers matter. The platform adjudicated at 55.40 claims per second during the measured phase. The full local evidence run, including fixture preparation and observation, took about 38 minutes.</p>
+<p>There was one reproducibility caveat in the local wrapper. The shell command that launched the Kubernetes job timed out while waiting for the job condition, but the Kubernetes job continued running, completed successfully, and published the completed Mass Adjudication summary. That was a local orchestration timeout, not a platform failure. The wrapper now supports a configurable <code>JOB_TIMEOUT</code> so larger local runs can wait long enough without changing validator scoring behavior.</p>
+<h2 id="what-the-console-should-make-obvious">What the console should make obvious</h2>
+<p>A useful operator console should not show only the best-looking number.</p>
+<p>For this run, it should make clear:</p>
+<ul><li>when fixture preparation started and ended</li><li>when timed submission began</li><li>current and final throughput</li><li>platform failures versus business dispositions</li><li>expected pends versus unexpected pends</li><li>matched, mismatched, unsupported, and timed-out workflow checks</li><li>payment comparisons and maximum delta</li><li>claim-level evidence behind every exception category</li></ul>
+<p>The run also exposed a live-progress display issue. During processing, expected-pend scenarios can look like workflow mismatches until the post-processing observation pass confirms the persisted pended state. In this run, the console showed 920 live workflow mismatches while processing claims. After expected-pend observation completed, that number correctly resolved to zero.</p>
+<p>That is not an adjudication failure, but it is a product lesson: the live console should distinguish unresolved expected-pend checks from true mismatches.</p>
+<h2 id="the-next-local-optimization-target">The next local optimization target</h2>
+<p>The next target is not immediately 250K.</p>
+<p>First, the team should run controlled 100K parallelism sweeps with the same seed, fixture model, and correctness gates. The p10 run used only a fraction of the allocated Docker Desktop CPU and memory, so p12 and p16 were natural experiments.</p>
+<p>The first of those sweeps is now complete. At p12, the same 100,000-claim gate stayed clean: 100,000 processed, zero platform failures, zero workflow mismatches, 920 of 920 expected-pend claims observed, zero unexpected pends across 10,934 scoreable non-pend claims, and 2,000 of 2,000 payment comparisons within one cent.</p>
+<p>Throughput improved from 55.40 to 58.55 claims per second. Tail latency moved the other direction: P95 increased from 324 ms to 416 ms and P99 increased from 480 ms to 580 ms. That is a good benchmark result because it is not a slogan. It says p12 buys some throughput, but the latency curve is starting to push back.</p>
+<p>The p16 run answered the next question. It also stayed correct: 100,000 processed, zero platform failures, zero workflow mismatches, 920 of 920 expected-pend claims observed, zero unexpected pends across 10,934 scoreable non-pend claims, and 2,000 of 2,000 payment comparisons within one cent.</p>
+<p>But p16 did not improve the local result. Throughput fell to 55.11 claims per second, P95 rose to 518 ms, and P99 rose to 683 ms. That makes the p16 run useful evidence in the other direction. The local system had enough raw Docker CPU and memory, but adding validator concurrency pushed internal service, persistence, or writeback pressure past the efficient point.</p>
+<p>The acceptance criterion stays the same: performance work cannot weaken the correctness gates.</p>
+<p>That suggests several concrete experiments:</p>
+<ul><li>analyze the p12/p16 crossover before attempting 250K</li><li>measure service concurrency and HTTP client limits</li><li>inspect MongoDB writeback and accumulator hot paths</li><li>preserve payment, false-pend, and workflow gates</li><li>keep unsupported scenarios visible instead of hiding them</li><li>report CPU, memory, and disk I/O alongside benchmark timing</li></ul>
+<p>Unsupported scenarios should become their own product-evidence track. The first likely candidates are the prior-authorization wrong-provider variant, followed by retroactive coverage change, Medicaid spend-down, behavioral-health carve-out, and subrogation. They should be converted into scoreable behavior deliberately, not swept into the same PR as a benchmark evidence update.</p>
+<h2 id="what-comes-after-the-local-ceiling">What comes after the local ceiling</h2>
+<p>The Million Claim Challenge is still aimed at one million claims.</p>
+<p>But the local series should continue until the limiting resource is reproducible and explained. It may be service concurrency, persistence, MongoDB, Docker networking, fixture preparation, or a combination of them.</p>
+<p>Once that ceiling is understood, the natural follow-up is a cloud scaling series using the same corpus and gates across Azure Kubernetes Service, Amazon Elastic Kubernetes Service, and Google Kubernetes Engine.</p>
+<p>The comparison should not ask only which cloud is fastest. It should ask how much infrastructure, time, and cost each environment needs to preserve zero platform failures, zero scoreable mismatches, zero unexpected pends, payment accuracy, and inspectable evidence.</p>
+<p>Part 5 made the benchmark repeatable.</p>
+<p>Part 6 made the scoring honest.</p>
+<p>Part 7 made the evidence visible.</p>
+<p>Part 8 proves that the stronger system can process 100,000 claims cleanly, with the fixture model hardened and the proof visible in the console.</p>
+    <div class="article-links"><a href="/insights/million-claim-challenge">All MCC articles</a><a href="/docs/million-claim-challenge/evidence">Evidence archive</a></div>
+  </main>
+</body>
+</html>

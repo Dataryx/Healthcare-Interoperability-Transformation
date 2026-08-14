@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appeals-service-config
+  namespace: cloudhealthoffice
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  CosmosDb__DatabaseName: "CloudHealthOffice"
+  ClaimsService__BaseUrl: "http://claims-service.cloudhealthoffice"
+  AppealEncryption__KeySecretPrefix: "appeal-body-encryption-key"
+  AppealEncryption__CurrentKeyVersion: "v1"
+  AppealEncryption__AcceptedKeyVersions__0: "v1"
+  Kafka__ClientId: "appeals-service"
+  AppealMigration__BatchSize: "100"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appeals-service
+  namespace: cloudhealthoffice
+  labels:
+    app: appeals-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appeals-service
+  template:
+    metadata:
+      labels:
+        app: appeals-service
+        tier: backend
+    spec:
+      containers:
+      - name: appeals-service
+        image: clouhealthoffice.azurecr.io/cloudhealthoffice-appeals-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: CosmosDb__AccountEndpoint
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: endpoint
+        - name: CosmosDb__AccountKey
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: key
+        - name: CosmosDb__DatabaseName
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: CosmosDb__DatabaseName
+        - name: ClaimsService__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: ClaimsService__BaseUrl
+        - name: MongoDb__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: connectionString
+        - name: MongoDb__DatabaseName
+          value: "cloudhealthoffice"
+        # Appeal body encryption — key material is in Key Vault under
+        # appeal-body-encryption-key-v1. Must be provisioned BEFORE first
+        # deployment; otherwise the readiness check fails and the pod is
+        # not rotated into traffic. See rotate-secret.sh.
+        - name: AppealEncryption__KeySecretPrefix
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: AppealEncryption__KeySecretPrefix
+        - name: AppealEncryption__CurrentKeyVersion
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: AppealEncryption__CurrentKeyVersion
+        - name: AppealEncryption__AcceptedKeyVersions__0
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: AppealEncryption__AcceptedKeyVersions__0
+        # Kafka — empty BootstrapServers puts the publisher in degraded
+        # mode (service boots, publishes are silent no-ops). Populate the
+        # secret when the broker is ready for appeal.status-changed.v1.
+        - name: Kafka__BootstrapServers
+          valueFrom:
+            secretKeyRef:
+              name: kafka-secret
+              key: bootstrapServers
+              optional: true
+        - name: Kafka__ClientId
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: Kafka__ClientId
+        - name: AppealMigration__BatchSize
+          valueFrom:
+            configMapKeyRef:
+              name: appeals-service-config
+              key: AppealMigration__BatchSize
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appeals-service
+  namespace: cloudhealthoffice
+  labels:
+    app: appeals-service
+spec:
+  type: ClusterIP
+  selector:
+    app: appeals-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP

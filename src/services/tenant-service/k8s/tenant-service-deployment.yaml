@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-service-config
+  namespace: cloudhealthoffice
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  MongoDb__DatabaseName: "cloudhealthoffice"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-service
+  namespace: cloudhealthoffice
+  labels:
+    app: tenant-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tenant-service
+  template:
+    metadata:
+      labels:
+        app: tenant-service
+        tier: backend
+    spec:
+      containers:
+      - name: tenant-service
+        image: clouhealthoffice.azurecr.io/cloudhealthoffice-tenant-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: tenant-service-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: MongoDb__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: connectionString
+        - name: MongoDb__DatabaseName
+          valueFrom:
+            configMapKeyRef:
+              name: tenant-service-config
+              key: MongoDb__DatabaseName
+        - name: SeedAdmin__TenantId
+          value: "aurelianware"
+        - name: SeedAdmin__Email
+          valueFrom:
+            secretKeyRef:
+              name: seed-admin-secret
+              key: email
+              optional: true
+        - name: SeedAdmin__DisplayName
+          valueFrom:
+            secretKeyRef:
+              name: seed-admin-secret
+              key: displayName
+              optional: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-service
+  namespace: cloudhealthoffice
+  labels:
+    app: tenant-service
+spec:
+  type: ClusterIP
+  selector:
+    app: tenant-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP

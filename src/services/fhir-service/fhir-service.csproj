@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FhirService</RootNamespace>
+    <AssemblyName>fhir-service</AssemblyName>
+    <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
+  </PropertyGroup>
+
+  <!--
+    CHO FHIR artifact embedding
+    ===========================
+    Source of truth for CHO-authored FHIR artifacts is `docs/fhir/profiles/`.
+    MSBuild embeds each JSON file directly into fhir-service.dll with
+    logical name prefix `FhirArtifacts.`. Because the <EmbeddedResource>
+    item references the source path verbatim, MSBuild participates in
+    incremental rebuilds — editing a profile causes fhir-service.dll to
+    rebuild with no manual copy step. `ChoFhirArtifactRegistry` reads
+    them at startup via `Assembly.GetManifestResourceStream`.
+
+    The Dockerfile includes a corresponding `COPY docs/fhir/profiles/`
+    line so the files are present in the build-stage working directory.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)..\..\..\docs\fhir\profiles\*.json"
+                      LogicalName="FhirArtifacts.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CloudHealthOffice.FhirService.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\shared\CloudHealthOffice.Infrastructure\CloudHealthOffice.Infrastructure.csproj" />
+    <ProjectReference Include="..\shared\CloudHealthOffice.Appeals.Contracts\CloudHealthOffice.Appeals.Contracts.csproj" />
+    <ProjectReference Include="..\..\engines\CloudHealthOffice.ProviderEnrollmentService\CloudHealthOffice.ProviderEnrollmentService.csproj" />
+    <ProjectReference Include="..\..\engines\CloudHealthOffice.PriorAuthRuleEngine\CloudHealthOffice.PriorAuthRuleEngine.csproj" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.62.1" />
+    <!-- StackExchange.Redis is pulled in transitively via
+         CloudHealthOffice.Infrastructure. fhir-service has no direct
+         IConnectionMultiplexer consumer after A.7.2 — the Redis client is
+         opened and owned by AddChoCaching. -->
+    <PackageReference Include="Hl7.Fhir.R4" Version="5.10.2" />
+    <PackageReference Include="MongoDB.Driver" Version="3.7.1" />
+    <!-- Standard JWT Bearer validation — tokens issued by smart-auth-service with
+         DisableAccessTokenEncryption() are standard RS256-signed JWTs discoverable
+         via /.well-known/openid-configuration on the auth server. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+  <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="7.1.2" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+  <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
+  </ItemGroup>
+
+</Project>

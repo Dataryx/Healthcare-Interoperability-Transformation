@@ -1,0 +1,993 @@
+@using CloudHealthOffice.Portal.Services
+@using System.Globalization
+@inject IBenefitPlanService BenefitPlanService
+@inject IBenefitPlanValidationService BenefitPlanValidationService
+@inject IProviderService ProviderService
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        @if (_serviceError != null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _serviceError = null">@_serviceError</MudAlert>
+        }
+
+        @if (_plan == null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+            <MudText>Loading plan details...</MudText>
+        }
+        else
+        {
+            <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+                <!-- Overview Tab -->
+                <MudTabPanel Text="Overview" Icon="@Icons.Material.Filled.Info">
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudText Typo="Typo.h6" GutterBottom="true">Plan Details</MudText>
+                            <MudSimpleTable Hover="true" Dense="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Plan ID:</strong></td>
+                                        <td style="font-family: monospace;">@_plan.PlanId</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Plan Name:</strong></td>
+                                        <td>@_plan.PlanName</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Sponsor:</strong></td>
+                                        <td>@_plan.SponsorName</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Product Type:</strong></td>
+                                        <td>
+                                            <MudChip Size="Size.Small" Color="GetProductTypeColor(_plan.ProductType)">
+                                                @_plan.ProductType
+                                            </MudChip>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Metal Tier:</strong></td>
+                                        <td>
+                                            <MudChip Size="Size.Small" Color="GetMetalTierColor(_plan.MetalTier)">
+                                                @_plan.MetalTier
+                                            </MudChip>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Network:</strong></td>
+                                        <td>@_plan.Network</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Plan Year:</strong></td>
+                                        <td>@_plan.PlanYear</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Status:</strong></td>
+                                        <td>
+                                            <MudChip Size="Size.Small" Color="GetStatusColor(_plan.Status)">
+                                                @_plan.Status
+                                            </MudChip>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudText Typo="Typo.h6" GutterBottom="true">Financial Structure</MudText>
+                            <MudSimpleTable Hover="true" Dense="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Monthly Premium:</strong></td>
+                                        <td>@FormatCurrency(_plan.MonthlyPremium)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Individual Deductible:</strong></td>
+                                        <td>@FormatCurrency(_plan.IndividualDeductible)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Family Deductible:</strong></td>
+                                        <td>@FormatCurrency(_plan.FamilyDeductible)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Individual OOP Max:</strong></td>
+                                        <td>@FormatCurrency(_plan.IndividualOOPMax)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Family OOP Max:</strong></td>
+                                        <td>@FormatCurrency(_plan.FamilyOOPMax)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Coinsurance:</strong></td>
+                                        <td>@_plan.Coinsurance%</td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudText Typo="Typo.h6" GutterBottom="true">Coverage Dates</MudText>
+                            <MudSimpleTable Hover="true" Dense="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Effective Date:</strong></td>
+                                        <td>@_plan.EffectiveDate.ToString("MMMM dd, yyyy")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Termination Date:</strong></td>
+                                        <td>
+                                            @if (_plan.TerminationDate.HasValue)
+                                            {
+                                                @_plan.TerminationDate.Value.ToString("MMMM dd, yyyy")
+                                            }
+                                            else
+                                            {
+                                                <em>No end date</em>
+                                            }
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudText Typo="Typo.h6" GutterBottom="true">Enrollment</MudText>
+                            <MudSimpleTable Hover="true" Dense="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Enrolled Members:</strong></td>
+                                        <td>@_plan.EnrolledMembers.ToString("N0")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Assigned Benefits:</strong></td>
+                                        <td>@_plan.AssignedBenefits</td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudItem>
+                    </MudGrid>
+                </MudTabPanel>
+
+                <!-- Benefits Tab -->
+                <MudTabPanel Text="Benefits" Icon="@Icons.Material.Filled.LocalHospital" 
+                            BadgeData="_plan.Benefits.Count" 
+                            BadgeColor="Color.Primary">
+                    <MudText Typo="Typo.h6" GutterBottom="true">Covered Services</MudText>
+                    <MudTable Items="@_plan.Benefits" Hover="true" Striped="true" Dense="true">
+                        <HeaderContent>
+                            <MudTh>Service Type</MudTh>
+                            <MudTh>Category</MudTh>
+                            <MudTh>Copay</MudTh>
+                            <MudTh>Coinsurance</MudTh>
+                            <MudTh>Coverage %</MudTh>
+                            <MudTh>Prior Auth</MudTh>
+                            <MudTh>Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Service Type"><strong>@context.ServiceType</strong></MudTd>
+                            <MudTd DataLabel="Category">
+                                <MudChip Size="Size.Small" Variant="Variant.Outlined">
+                                    @context.Category
+                                </MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Copay">
+                                @if (context.Copay.HasValue)
+                                {
+                                    @FormatCurrency(context.Copay.Value)
+                                }
+                                else
+                                {
+                                    <em>-</em>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Coinsurance">
+                                @if (context.CoinsurancePercent.HasValue)
+                                {
+                                    @($"{context.CoinsurancePercent}%")
+                                }
+                                else
+                                {
+                                    <em>-</em>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Coverage %">
+                                @if (context.CoveragePercent.HasValue)
+                                {
+                                    @($"{context.CoveragePercent}%")
+                                }
+                                else
+                                {
+                                    <em>-</em>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Prior Auth">
+                                @if (context.PriorAuthRequired)
+                                {
+                                    <MudChip Size="Size.Small" Color="Color.Warning">Required</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip Size="Size.Small" Color="Color.Success">Not Required</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Actions">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               Title="Edit benefit rule"
+                                               OnClick="@(() => EditBenefit(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText Typo="Typo.body2" Align="Align.Center" Class="pa-4">
+                                No benefits configured
+                            </MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Add"
+                              Class="mt-4"
+                              OnClick="AddBenefits">
+                        Add Benefits
+                    </MudButton>
+                </MudTabPanel>
+
+                <!-- Networks Tab -->
+                <MudTabPanel Text="Networks" Icon="@Icons.Material.Filled.Hub"
+                             BadgeData="_plan.NetworkTiers.Count"
+                             BadgeColor="Color.Info">
+                    <MudText Typo="Typo.h6" GutterBottom="true">Plan Network Tiers</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-4">
+                        Tier 1 is the preferred network. Network IDs must match the organization IDs used by provider participation.
+                    </MudText>
+                    @if (_plan.NetworkTiers.Any())
+                    {
+                        <MudTable Items="@_plan.NetworkTiers" Hover="true" Striped="true" Dense="true">
+                            <HeaderContent>
+                                <MudTh>Priority</MudTh>
+                                <MudTh>Tier Name</MudTh>
+                                <MudTh>Network ID</MudTh>
+                                <MudTh>Actions</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Priority">
+                                    <MudChip Size="Size.Small" Color="@(context.TierLevel == 1 ? Color.Success : Color.Default)">
+                                        Tier @context.TierLevel
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd DataLabel="Tier Name"><strong>@context.TierName</strong></MudTd>
+                                <MudTd DataLabel="Network ID"><code>@context.NetworkId</code></MudTd>
+                                <MudTd DataLabel="Actions">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   Color="Color.Primary" Title="Edit network tier"
+                                                   OnClick="@(() => EditNetworkTier(context))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                   Color="Color.Error" Title="Remove network tier"
+                                                   OnClick="@(() => RemoveNetworkTier(context))" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Warning">No network tiers are configured for this plan.</MudAlert>
+                    }
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add" Class="mt-4"
+                               OnClick="AddNetworkTier">
+                        Add Network Tier
+                    </MudButton>
+
+                    @if (_plan.NetworkTiers.Any())
+                    {
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.h6" GutterBottom="true">Provider participation verification</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                            Resolve the selected plan tier to its provider-service network, inspect the effective roster,
+                            and prove a specific NPI's participation on the service date.
+                        </MudText>
+                        <MudGrid AlignItems="AlignItems.End">
+                            <MudItem xs="12" md="4">
+                                <MudSelect T="string" Label="Plan network tier" @bind-Value="_selectedNetworkId"
+                                           Variant="Variant.Outlined" data-testid="network-verification-tier">
+                                    @foreach (var tier in _plan.NetworkTiers.OrderBy(tier => tier.TierLevel))
+                                    {
+                                        <MudSelectItem T="string" Value="@tier.NetworkId">Tier @tier.TierLevel · @tier.TierName (@tier.NetworkId)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudDatePicker Label="As-of date" @bind-Date="_networkAsOfDate"
+                                               DateFormat="MM/dd/yyyy" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                                           StartIcon="@Icons.Material.Filled.Groups"
+                                           Disabled="_networkVerificationBusy"
+                                           data-testid="load-network-roster"
+                                           OnClick="LoadNetworkRosterAsync">
+                                    Load effective roster
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        @if (_networkVerificationBusy)
+                        {
+                            <MudProgressLinear Indeterminate="true" Color="Color.Secondary" Class="mt-3" />
+                        }
+                        else if (_providerNetwork != null && _networkRoster != null)
+                        {
+                            <MudPaper Outlined="true" Class="pa-4 mt-3">
+                                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                    <div>
+                                        <MudText Typo="Typo.subtitle1"><strong>@_providerNetwork.Name</strong></MudText>
+                                        <MudText Typo="Typo.body2"><code>@_providerNetwork.OrganizationId</code> · @_providerNetwork.NetworkType · @_providerNetwork.LineOfBusiness</MudText>
+                                        <MudText Typo="Typo.caption">Effective @_providerNetwork.EffectiveDate.ToString("MMM d, yyyy")@(_providerNetwork.TerminationDate.HasValue ? $" through {_providerNetwork.TerminationDate.Value:MMM d, yyyy}" : " · open-ended") · Version @_providerNetwork.VersionNumber</MudText>
+                                    </div>
+                                    <MudChip Color="@(_providerNetwork.Status == "Active" ? Color.Success : Color.Warning)" Icon="@Icons.Material.Filled.AccountTree">
+                                        @_providerNetwork.Status
+                                    </MudChip>
+                                </MudStack>
+                            </MudPaper>
+
+                            <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">Effective provider roster (@_networkRoster.Items.Count shown)</MudText>
+                            @if (_networkRoster.Items.Any())
+                            {
+                                <MudTable Items="@_networkRoster.Items" Dense="true" Hover="true" Striped="true" data-testid="network-roster-table">
+                                    <HeaderContent>
+                                        <MudTh>Provider</MudTh>
+                                        <MudTh>NPI</MudTh>
+                                        <MudTh>Specialty</MudTh>
+                                        <MudTh>Plan / Tier</MudTh>
+                                        <MudTh>Participation</MudTh>
+                                        <MudTh>Integrity</MudTh>
+                                        <MudTh>Verify</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd DataLabel="Provider"><strong>@context.Provider.DisplayName</strong><br /><small>@context.Provider.City, @context.Provider.State</small></MudTd>
+                                        <MudTd DataLabel="NPI"><code>@context.Provider.Npi</code></MudTd>
+                                        <MudTd DataLabel="Specialty">@context.Provider.PrimarySpecialty</MudTd>
+                                        <MudTd DataLabel="Plan / Tier">@(context.Participation.PlanId ?? "Any plan")<br /><small>@context.Participation.NetworkTier</small></MudTd>
+                                        <MudTd DataLabel="Participation">@context.Participation.EffectiveDate.ToString("MM/dd/yyyy")<br /><small>@(context.Participation.TerminationDate?.ToString("MM/dd/yyyy") ?? "Open-ended")</small></MudTd>
+                                        <MudTd DataLabel="Integrity">
+                                            <MudChip Size="Size.Small" Color="@(context.IntegrityScore?.Rating == "Clear" ? Color.Success : Color.Default)">
+                                                @(context.IntegrityScore?.Score?.ToString() ?? "—") @(context.IntegrityScore?.Rating ?? "Unverified")
+                                            </MudChip>
+                                        </MudTd>
+                                        <MudTd DataLabel="Verify">
+                                            <MudIconButton Icon="@Icons.Material.Filled.VerifiedUser"
+                                                           Color="Color.Primary" Size="Size.Small"
+                                                           Title="Verify this NPI's participation"
+                                                           data-testid="@($"verify-roster-provider-{context.Provider.Npi}")"
+                                                           OnClick="@(() => VerifyNetworkMembershipAsync(context.Provider.Npi))" />
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">No providers are effective in this network on @_networkAsOfDate?.ToString("MMMM d, yyyy").</MudAlert>
+                            }
+
+                            <MudGrid AlignItems="AlignItems.End" Class="mt-3">
+                                <MudItem xs="12" sm="7" md="5">
+                                    <MudTextField Label="Verify provider NPI" @bind-Value="_networkMembershipNpi"
+                                                  Variant="Variant.Outlined" MaxLength="10"
+                                                  Placeholder="10-digit NPI" data-testid="network-membership-npi" />
+                                </MudItem>
+                                <MudItem xs="12" sm="5" md="3">
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                               StartIcon="@Icons.Material.Filled.VerifiedUser"
+                                               Disabled="_networkMembershipBusy"
+                                               data-testid="verify-network-membership"
+                                               OnClick="VerifyEnteredNetworkMembershipAsync">
+                                        Verify participation
+                                    </MudButton>
+                                </MudItem>
+                            </MudGrid>
+
+                            @if (_networkMembershipChecked)
+                            {
+                                <MudAlert Severity="@(_networkMembership?.IsActiveMember == true ? Severity.Success : Severity.Warning)"
+                                          Variant="Variant.Filled" Class="mt-3" data-testid="network-membership-result">
+                                    @if (_networkMembership?.IsActiveMember == true)
+                                    {
+                                        <span><strong>@_networkMembership.Npi is an active member</strong> of @_networkMembership.NetworkId on @_networkMembership.AsOfDate.ToString("MMMM d, yyyy") · @_networkMembership.NetworkTier · @_networkMembership.LineOfBusiness</span>
+                                    }
+                                    else if (_networkMembership != null)
+                                    {
+                                        <span><strong>@_networkMembership.Npi is not active</strong> on @_networkMembership.AsOfDate.ToString("MMMM d, yyyy") · @_networkMembership.ParticipationStatus</span>
+                                    }
+                                    else
+                                    {
+                                        <span><strong>@_networkMembershipNpi has no participation record</strong> in @_selectedNetworkId.</span>
+                                    }
+                                </MudAlert>
+                            }
+                        }
+                        else if (_networkVerificationAttempted)
+                        {
+                            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-3">
+                                Network @_selectedNetworkId was not found in provider-service. Create the network organization before assigning provider participation.
+                            </MudAlert>
+                        }
+                    }
+                </MudTabPanel>
+
+                <!-- Exclusions Tab -->
+                <MudTabPanel Text="Exclusions" Icon="@Icons.Material.Filled.Block" 
+                            BadgeData="_plan.Exclusions.Count" 
+                            BadgeColor="Color.Error">
+                    <MudText Typo="Typo.h6" GutterBottom="true">Services Not Covered</MudText>
+                    @if (_plan.Exclusions.Any())
+                    {
+                        <MudTable Items="@_plan.Exclusions" Hover="true" Dense="true">
+                            <HeaderContent>
+                                <MudTh>Excluded Service</MudTh>
+                                <MudTh>Category</MudTh>
+                                <MudTh>Billing Codes</MudTh>
+                                <MudTh>Claim Result</MudTh>
+                                <MudTh>Actions</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Excluded Service"><strong>@context.ServiceType</strong></MudTd>
+                                <MudTd DataLabel="Category">
+                                    <MudChip Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">@context.ServiceCategory</MudChip>
+                                </MudTd>
+                                <MudTd DataLabel="Billing Codes">@(context.CptCodes.Any() ? string.Join(", ", context.CptCodes) : "Entire category")</MudTd>
+                                <MudTd DataLabel="Claim Result">
+                                    <MudChip Size="Size.Small" Color="Color.Error">Denied · CARC 96</MudChip>
+                                </MudTd>
+                                <MudTd DataLabel="Actions">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   Title="Edit exclusion"
+                                                   OnClick="@(() => EditExclusion(context))" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Info">No exclusions defined for this plan.</MudAlert>
+                    }
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               Class="mt-4"
+                               OnClick="AddExclusion">
+                        Add Exclusion
+                    </MudButton>
+                </MudTabPanel>
+
+                <!-- Validation Tab -->
+                <MudTabPanel Text="Validation" Icon="@Icons.Material.Filled.FactCheck">
+                    <MudStack Spacing="3">
+                        <div>
+                            <MudText Typo="Typo.h6">Validate this exact plan</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                Inspect the member-facing view as of a service date, then optionally send a real synthetic 837 through adjudication.
+                            </MudText>
+                        </div>
+
+                        <MudGrid AlignItems="AlignItems.End">
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudDatePicker Label="Service date" @bind-Date="_validationServiceDate"
+                                               DateFormat="MM/dd/yyyy" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.Refresh"
+                                           Disabled="_validationBusy"
+                                           OnClick="RunConfigurationValidationAsync">
+                                    Refresh validation
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        @if (_validationBusy)
+                        {
+                            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                        }
+                        else if (_validation != null)
+                        {
+                            <MudAlert Severity="@(_validation.IsValid ? Severity.Success : Severity.Error)"
+                                      Variant="Variant.Outlined">
+                                <strong>@(_validation.IsValid ? "Ready for a claim test" : "Configuration needs attention")</strong>
+                                · @_validation.PlanVersion · @_validation.ServiceDate.ToString("MMMM d, yyyy")
+                            </MudAlert>
+
+                            <MudGrid>
+                                @foreach (var check in _validation.Checks)
+                                {
+                                    <MudItem xs="12" md="6">
+                                        <MudPaper Outlined="true" Class="pa-3" Style="height:100%">
+                                            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                                <MudIcon Icon="@ValidationIcon(check.Severity)" Color="@ValidationColor(check.Severity)" />
+                                                <div>
+                                                    <MudText Typo="Typo.subtitle2">@check.Name</MudText>
+                                                    <MudText Typo="Typo.body2">@check.Message</MudText>
+                                                </div>
+                                            </MudStack>
+                                        </MudPaper>
+                                    </MudItem>
+                                }
+                            </MudGrid>
+
+                            @if (_validation.MemberView != null)
+                            {
+                                <MudPaper Outlined="true" Class="pa-4">
+                                    <MudText Typo="Typo.subtitle1" GutterBottom="true">Member view snapshot</MudText>
+                                    <MudGrid>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Benefit categories</MudText><MudText Typo="Typo.h6">@_validation.MemberView.Categories.Count</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Individual deductible</MudText><MudText Typo="Typo.h6">@FormatCurrency(_validation.MemberView.CostSharing.IndividualDeductible)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Individual OOP max</MudText><MudText Typo="Typo.h6">@FormatCurrency(_validation.MemberView.CostSharing.IndividualOutOfPocketMax)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Accumulator model</MudText><MudText Typo="Typo.h6">@_validation.MemberView.FamilyAccumulatorModel</MudText></MudItem>
+                                    </MudGrid>
+                                </MudPaper>
+                            }
+
+                            <MudDivider />
+                            <div>
+                                <MudText Typo="Typo.h6">Synthetic 837 proof</MudText>
+                                <MudText Typo="Typo.body2">
+                                    Ensures the plan's preferred network and test provider participation exist, creates an isolated synthetic member and coverage,
+                                    uploads one X12 837P, and reads the final claim projection. Fixture provisioning is limited to demo-enabled environments.
+                                </MudText>
+                            </div>
+
+                            @if (!BenefitPlanValidationService.SyntheticClaimsEnabled)
+                            {
+                                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                                    Synthetic claim submission is off in this environment. It runs automatically in Development or LocalDemo, or when
+                                    <code>Features:BenefitPlanSyntheticValidationEnabled</code> is explicitly enabled.
+                                </MudAlert>
+                            }
+                            else
+                            {
+                                <MudGrid>
+                                    <MudItem xs="12" sm="4">
+                                        <MudTextField Label="Provider NPI" @bind-Value="_syntheticRequest.ProviderNpi"
+                                                      Variant="Variant.Outlined" MaxLength="10" data-testid="plan-validation-provider-npi" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="4">
+                                        <MudTextField Label="Procedure code" @bind-Value="_syntheticRequest.ProcedureCode"
+                                                      Variant="Variant.Outlined" data-testid="plan-validation-procedure-code" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="4">
+                                        <MudNumericField T="decimal" Label="Charge amount" @bind-Value="_syntheticRequest.ChargeAmount"
+                                                         Variant="Variant.Outlined" Format="C" Min="0.01m" />
+                                    </MudItem>
+                                </MudGrid>
+                                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                                           data-testid="run-synthetic-837"
+                                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                                           Disabled="@(_syntheticBusy || !_validation.IsValid)"
+                                           OnClick="RunSyntheticClaimAsync">
+                                    @(_syntheticBusy ? "Adjudicating…" : "Run synthetic 837")
+                                </MudButton>
+                                @if (_syntheticBusy)
+                                {
+                                    <MudProgressLinear Indeterminate="true" Color="Color.Secondary" />
+                                    <MudText Typo="Typo.caption">Submitting the 837 and waiting up to 60 seconds for the claim projection.</MudText>
+                                }
+                            }
+
+                            @if (_syntheticResult != null)
+                            {
+                                <MudAlert Severity="@(_syntheticResult.ExactPlanMatched ? Severity.Success : Severity.Error)"
+                                          Variant="Variant.Filled">
+                                    Claim @_syntheticResult.ClaimNumber resolved to <strong>@_syntheticResult.ResolvedPlanId</strong>
+                                    · @_syntheticResult.PlanVersion · @_syntheticResult.Status
+                                </MudAlert>
+                                <MudPaper Outlined="true" Class="pa-4">
+                                    <MudGrid>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Network tier</MudText><MudText Typo="Typo.h6">@(_syntheticResult.NetworkTier ?? "Not assigned")</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Billed</MudText><MudText Typo="Typo.h6">@FormatCurrency(_syntheticResult.ChargeAmount)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Allowed</MudText><MudText Typo="Typo.h6">@FormatCurrency(_syntheticResult.AllowedAmount)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Plan paid</MudText><MudText Typo="Typo.h6">@FormatCurrency(_syntheticResult.PaidAmount)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Deductible</MudText><MudText Typo="Typo.h6">@FormatCurrency(_syntheticResult.DeductibleAmount)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Copay</MudText><MudText Typo="Typo.h6">@FormatCurrency(_syntheticResult.CopayAmount)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Coinsurance</MudText><MudText Typo="Typo.h6">@FormatCurrency(_syntheticResult.CoinsuranceAmount)</MudText></MudItem>
+                                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Member responsibility</MudText><MudText Typo="Typo.h6">@FormatCurrency(_syntheticResult.PatientResponsibility)</MudText></MudItem>
+                                    </MudGrid>
+                                    @if (!string.IsNullOrWhiteSpace(_syntheticResult.OutcomeReason))
+                                    {
+                                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@_syntheticResult.OutcomeReason</MudAlert>
+                                    }
+                                    <MudText Typo="Typo.caption" Class="mt-3">Claim ID: @_syntheticResult.ClaimId · elapsed @_syntheticResult.Elapsed.TotalSeconds.ToString("0.0")s</MudText>
+                                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.HealthAndSafety"
+                                                   Href="@($"/members?memberId={Uri.EscapeDataString(_syntheticResult.MemberId)}&open=true")"
+                                                   data-testid="open-synthetic-member">
+                                            Open member coverage
+                                        </MudButton>
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                                                   StartIcon="@Icons.Material.Filled.ReceiptLong"
+                                                   Href="@($"/claims/{Uri.EscapeDataString(_syntheticResult.ClaimId)}")"
+                                                   data-testid="open-synthetic-claim">
+                                            Open claim details
+                                        </MudButton>
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        }
+                    </MudStack>
+                </MudTabPanel>
+
+                <!-- Members Tab -->
+                <MudTabPanel Text="Members" Icon="@Icons.Material.Filled.People" 
+                            BadgeData="_plan.EnrolledMembers" 
+                            BadgeColor="Color.Secondary">
+                    <MudText Typo="Typo.h6" GutterBottom="true">Enrolled Members</MudText>
+                    <MudAlert Severity="Severity.Info" Class="mb-4">
+                        This plan has <strong>@_plan.EnrolledMembers.ToString("N0")</strong> enrolled members.
+                    </MudAlert>
+                    <MudButton Variant="Variant.Outlined" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Search"
+                              Href="/members">
+                        View All Members
+                    </MudButton>
+                </MudTabPanel>
+            </MudTabs>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Close</MudButton>
+        @if (_plan != null)
+        {
+            <MudButton Variant="Variant.Filled" 
+                      Color="Color.Primary" 
+                      StartIcon="@Icons.Material.Filled.Edit"
+                      OnClick="EditPlan">
+                Edit Plan
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string PlanId { get; set; } = string.Empty;
+
+    private BenefitPlanDetails? _plan;
+    private string? _serviceError;
+    private DateTime? _validationServiceDate = DateTime.Today;
+    private BenefitPlanValidationResult? _validation;
+    private bool _validationBusy;
+    private bool _syntheticBusy;
+    private SyntheticClaimValidationRequest _syntheticRequest = new() { ServiceDate = DateTime.Today };
+    private SyntheticClaimValidationResult? _syntheticResult;
+    private string? _selectedNetworkId;
+    private DateTime? _networkAsOfDate = DateTime.Today;
+    private ProviderNetworkInfo? _providerNetwork;
+    private ProviderNetworkRoster? _networkRoster;
+    private ProviderNetworkMembership? _networkMembership;
+    private string _networkMembershipNpi = string.Empty;
+    private bool _networkVerificationBusy;
+    private bool _networkVerificationAttempted;
+    private bool _networkMembershipBusy;
+    private bool _networkMembershipChecked;
+    private static readonly CultureInfo UsCulture = CultureInfo.GetCultureInfo("en-US");
+
+    private static string FormatCurrency(decimal value) => value.ToString("C", UsCulture);
+
+    protected override async Task OnInitializedAsync()
+        => await LoadPlanAsync();
+
+    private async Task LoadPlanAsync()
+    {
+        try
+        {
+            _plan = await BenefitPlanService.GetBenefitPlanByIdAsync(PlanId);
+            if (_plan != null)
+            {
+                var today = DateTime.Today;
+                _validationServiceDate = today < _plan.EffectiveDate.Date ? _plan.EffectiveDate.Date : today;
+                if (_plan.TerminationDate.HasValue && _validationServiceDate > _plan.TerminationDate.Value.Date)
+                    _validationServiceDate = _plan.TerminationDate.Value.Date;
+                _networkAsOfDate = _validationServiceDate;
+                _selectedNetworkId = _plan.NetworkTiers.OrderBy(tier => tier.TierLevel).FirstOrDefault()?.NetworkId;
+                await RunConfigurationValidationAsync();
+            }
+        }
+        catch (ServiceUnavailableException ex)
+        {
+            _serviceError = ex.Message;
+            _plan = null;
+        }
+        catch (Exception)
+        {
+            _plan = null;
+        }
+    }
+
+    private async Task RunConfigurationValidationAsync()
+    {
+        if (_plan == null || !_validationServiceDate.HasValue) return;
+        _validationBusy = true;
+        _serviceError = null;
+        _syntheticResult = null;
+        try
+        {
+            _validation = await BenefitPlanValidationService.ValidateAsync(_plan, _validationServiceDate.Value);
+            _syntheticRequest.ServiceDate = _validationServiceDate.Value;
+        }
+        catch (Exception ex)
+        {
+            _serviceError = $"Plan validation could not be completed: {ex.Message}";
+        }
+        finally
+        {
+            _validationBusy = false;
+        }
+    }
+
+    private async Task RunSyntheticClaimAsync()
+    {
+        if (_plan == null || _validation == null) return;
+        _syntheticBusy = true;
+        _serviceError = null;
+        _syntheticResult = null;
+        _syntheticRequest.ServiceDate = _validation.ServiceDate;
+        try
+        {
+            _syntheticResult = await BenefitPlanValidationService.RunSynthetic837Async(_plan, _syntheticRequest);
+        }
+        catch (Exception ex)
+        {
+            _serviceError = $"Synthetic 837 validation failed: {ex.Message}";
+        }
+        finally
+        {
+            _syntheticBusy = false;
+        }
+    }
+
+    private static Color ValidationColor(string severity) => severity switch
+    {
+        "Error" => Color.Error,
+        "Warning" => Color.Warning,
+        _ => Color.Success
+    };
+
+    private static string ValidationIcon(string severity) => severity switch
+    {
+        "Error" => Icons.Material.Filled.Error,
+        "Warning" => Icons.Material.Filled.Warning,
+        _ => Icons.Material.Filled.CheckCircle
+    };
+
+    private async Task LoadNetworkRosterAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedNetworkId) || !_networkAsOfDate.HasValue) return;
+        _networkVerificationBusy = true;
+        _networkVerificationAttempted = true;
+        _networkMembership = null;
+        _networkMembershipChecked = false;
+        _serviceError = null;
+        try
+        {
+            var networkTask = ProviderService.GetNetworkAsync(_selectedNetworkId);
+            var rosterTask = ProviderService.GetNetworkRosterAsync(_selectedNetworkId, _networkAsOfDate.Value);
+            await Task.WhenAll(networkTask, rosterTask);
+            _providerNetwork = await networkTask;
+            _networkRoster = await rosterTask;
+        }
+        catch (Exception ex)
+        {
+            _providerNetwork = null;
+            _networkRoster = null;
+            _serviceError = $"Provider network verification failed: {ex.Message}";
+        }
+        finally
+        {
+            _networkVerificationBusy = false;
+        }
+    }
+
+    private Task VerifyEnteredNetworkMembershipAsync()
+        => VerifyNetworkMembershipAsync(_networkMembershipNpi);
+
+    private async Task VerifyNetworkMembershipAsync(string npi)
+    {
+        if (string.IsNullOrWhiteSpace(_selectedNetworkId) || !_networkAsOfDate.HasValue) return;
+        _networkMembershipNpi = npi.Trim();
+        if (_networkMembershipNpi.Length != 10 || !_networkMembershipNpi.All(char.IsDigit))
+        {
+            _serviceError = "Enter a 10-digit NPI before verifying network participation.";
+            return;
+        }
+
+        _networkMembershipBusy = true;
+        _networkMembershipChecked = false;
+        _serviceError = null;
+        try
+        {
+            _networkMembership = await ProviderService.GetNetworkMembershipAsync(
+                _selectedNetworkId, _networkMembershipNpi, _networkAsOfDate.Value);
+            _networkMembershipChecked = true;
+        }
+        catch (Exception ex)
+        {
+            _serviceError = $"Provider participation verification failed: {ex.Message}";
+        }
+        finally
+        {
+            _networkMembershipBusy = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void EditPlan()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task AddBenefits()
+    {
+        var parameters = new DialogParameters<AddEditPlanBenefitDialog>
+        {
+            { dialog => dialog.PlanId, PlanId },
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+        };
+        var dialog = await DialogService.ShowAsync<AddEditPlanBenefitDialog>(
+            "Add Benefit Rule", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadPlanAsync();
+        }
+    }
+
+    private async Task EditBenefit(PlanBenefit benefit)
+    {
+        var parameters = new DialogParameters<AddEditPlanBenefitDialog>
+        {
+            { dialog => dialog.PlanId, PlanId },
+            { dialog => dialog.ExistingBenefit, benefit },
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+        };
+        var dialog = await DialogService.ShowAsync<AddEditPlanBenefitDialog>(
+            "Edit Benefit Rule", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadPlanAsync();
+        }
+    }
+
+    private async Task AddExclusion()
+    {
+        await ShowExclusionDialogAsync(null);
+    }
+
+    private Task AddNetworkTier() => ShowNetworkTierDialogAsync(null);
+
+    private Task EditNetworkTier(PlanNetworkTier tier) => ShowNetworkTierDialogAsync(tier);
+
+    private async Task ShowNetworkTierDialogAsync(PlanNetworkTier? tier)
+    {
+        var parameters = new DialogParameters<AddEditPlanNetworkTierDialog>
+        {
+            { dialog => dialog.PlanId, PlanId },
+            { dialog => dialog.ExistingTiers, _plan?.NetworkTiers ?? new List<PlanNetworkTier>() },
+        };
+        if (tier != null) parameters.Add(dialog => dialog.ExistingTier, tier);
+
+        var title = tier == null ? "Add Network Tier" : "Edit Network Tier";
+        var dialog = await DialogService.ShowAsync<AddEditPlanNetworkTierDialog>(title, parameters, new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+        });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadPlanAsync();
+    }
+
+    private async Task RemoveNetworkTier(PlanNetworkTier tier)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Remove Network Tier",
+            $"Remove Tier {tier.TierLevel} — {tier.TierName}? This publishes a new plan version.",
+            yesText: "Remove", cancelText: "Cancel");
+        if (confirmed != true || _plan == null) return;
+
+        _serviceError = null;
+        try
+        {
+            await BenefitPlanService.ReplaceNetworkTiersAsync(
+                PlanId, _plan.NetworkTiers.Where(existing => existing.Id != tier.Id).ToList());
+            await LoadPlanAsync();
+        }
+        catch (ServiceUnavailableException ex)
+        {
+            _serviceError = ex.Message;
+        }
+        catch (Exception)
+        {
+            _serviceError = "The network tier could not be removed. Try again.";
+        }
+    }
+
+    private async Task EditExclusion(PlanBenefit exclusion)
+    {
+        await ShowExclusionDialogAsync(exclusion);
+    }
+
+    private async Task ShowExclusionDialogAsync(PlanBenefit? exclusion)
+    {
+        var parameters = new DialogParameters<AddEditPlanExclusionDialog>
+        {
+            { dialog => dialog.PlanId, PlanId },
+        };
+        if (exclusion != null)
+        {
+            parameters.Add(dialog => dialog.ExistingExclusion, exclusion);
+        }
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+        };
+        var title = exclusion == null ? "Add Plan Exclusion" : "Edit Plan Exclusion";
+        var dialog = await DialogService.ShowAsync<AddEditPlanExclusionDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadPlanAsync();
+        }
+    }
+
+    private Color GetProductTypeColor(string productType) => productType switch
+    {
+        "PPO" => Color.Primary,
+        "HMO" => Color.Secondary,
+        "EPO" => Color.Info,
+        "HDHP" => Color.Success,
+        _ => Color.Default
+    };
+
+    private Color GetMetalTierColor(string metalTier) => metalTier switch
+    {
+        "Platinum" => Color.Dark,
+        "Gold" => Color.Warning,
+        "Silver" => Color.Default,
+        "Bronze" => Color.Tertiary,
+        _ => Color.Default
+    };
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "Active" => Color.Success,
+        "Pending" => Color.Warning,
+        "Inactive" => Color.Error,
+        _ => Color.Default
+    };
+}

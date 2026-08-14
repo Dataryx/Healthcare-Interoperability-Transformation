@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pre-existing visibility for unit tests that exercise internal
+         helpers (e.g. NetworkCredentialingStage.ResolveEarliestServiceDate
+         in 5.6's tests). Without this the test project failed to build —
+         landed alongside 5.4 to unblock the new ScrubbingStage tests. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>CloudHealthOffice.ClaimsService.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../shared/CloudHealthOffice.Infrastructure/CloudHealthOffice.Infrastructure.csproj" />
+    <ProjectReference Include="../shared/CloudHealthOffice.Events/CloudHealthOffice.Events.csproj" />
+    <!-- Capability 5.5 — BenefitCalculationStage calls IBenefitCalculationEngine
+         (BP 5.10) directly. The engine ships as a class library so the same
+         calculation runs in claims-service (adjudication pipeline) and
+         benefit-plan-service (preview / what-if surface). -->
+    <ProjectReference Include="../../engines/CloudHealthOffice.BenefitEngine/CloudHealthOffice.BenefitEngine.csproj" />
+    <!-- Capability 5.4 — ScrubbingStage drives every claim through the
+         shared scrub engine class library before downstream stages run.
+         Same in-process pattern as BenefitEngine; replaces the
+         decommissioned claims-scrubbing-service. -->
+    <ProjectReference Include="../../engines/CloudHealthOffice.ClaimsScrubEngine/CloudHealthOffice.ClaimsScrubEngine.csproj" />
+    <!-- Capability 5.7 — NcciEditsStage drives every claim through the
+         NCCI engine class library for Column 1/2 (PTP) and MUE checks
+         between BenefitCalculation (Order=300) and CoB (Order=500).
+         Engine ships as a class library; auto-detect repository binds
+         to whichever backend (Mongo / Cosmos) AddChoInfrastructure
+         already registered for the host. -->
+    <ProjectReference Include="../../engines/CloudHealthOffice.NcciEngine/CloudHealthOffice.NcciEngine.csproj" />
+    <!-- Capability 5.8 — CoordinationOfBenefitsStage uses the CobEngine
+         class library for payer-order determination at Order=500.
+         Engine is pure-calculation (no I/O, no repository); claims-service
+         registers ICobCalculationService + IPayerOrderService directly in
+         Program.cs (no AddCobEngine extension exists — see plan
+         Decision 1b). Phase 1 exercises only IPayerOrderService for
+         audit-trail rule labelling on detected CHO-secondary scenarios. -->
+    <ProjectReference Include="../../engines/CloudHealthOffice.CobEngine/CloudHealthOffice.CobEngine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+    <PackageReference Include="Confluent.Kafka" Version="2.6.1" />
+  </ItemGroup>
+
+</Project>

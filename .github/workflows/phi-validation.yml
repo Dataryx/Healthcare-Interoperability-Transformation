@@ -1,0 +1,242 @@
+name: PHI Validation
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches: [main, release/*]
+  push:
+    branches: [main]
+
+jobs:
+  validate-phi-redaction:
+    runs-on: ubuntu-latest
+    name: Validate PHI Redaction in Code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Run PHI logging validation tests
+        run: npm test -- logging-validation.test.ts
+
+      - name: Scan workflows for unredacted PHI
+        shell: pwsh
+        run: |
+          $violations = @()
+
+          # Scan for console.log without redactPHI
+          Write-Host "🔍 Scanning for unredacted console.log patterns..."
+          # Use -File to only get files (not directories) and exclude node_modules/dist from the path
+          # Also exclude example files which demonstrate logging patterns
+          $files = Get-ChildItem -Path ./src,./scripts -Recurse -File -Include *.ts,*.js |
+                   Where-Object {
+                     $_.FullName -notmatch 'node_modules|dist' -and
+                     $_.Name -notlike '*.test.ts' -and
+                     $_.Name -notlike '*example*' -and
+                     $_.Name -notlike '*Example*'
+                   }
+
+          # Safe patterns that are NOT PHI - allowed in console logs
+          # NPI (National Provider Identifier) is public data available via NPPES
+          # registry at https://npiregistry.cms.hhs.gov — it is NOT PHI per HIPAA.
+          $safePatterns = @(
+            'Path|Dir|Directory|File',
+            'Template',
+            'Config',
+            'Output',
+            'payerName|payerId|payerType',
+            'count|length|total|size',
+            'error\.message',
+            'step\d+Time|totalTime|elapsed',
+            'status|result|success|failed',
+            'chalk\.',
+            'resourceGroup|location',
+            'workflow|template|schema',
+            'Generated|Created|Saved',
+            'HIPAA-AUDIT',
+            'message|Message',
+            'module|enabled|options',
+            'field|suggestion',
+            'companyName|contactEmail',
+            'skipFhir|skipPa',
+            ',\s*(err|error|e)\)',
+            '[Nn][Pp][Ii]|npi|providerNpi|billingNpi',
+            'taxonomyCode|taxonomy|hcpcsCode',
+            'integrityScore|integrityRating|verificationStatus'
+          )
+          $safePatternRegex = $safePatterns -join '|'
+
+          foreach ($file in $files) {
+            $content = Get-Content $file.FullName -Raw
+            $lines = Get-Content $file.FullName
+
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+              $line = $lines[$i]
+
+              # Check for console.log with variables but no redactPHI
+              if ($line -match 'console\.(log|info|warn|error)' -and
+                  $line -match '\$\{|,\s*[a-zA-Z]' -and
+                  $line -notmatch 'redactPHI' -and
+                  $line -notmatch $safePatternRegex) {
+
+                # Skip test files and comments
+                if ($file.Name -notlike "*.test.ts" -and $line -notmatch '^\s*//') {
+                  $violations += "❌ $($file.FullName):$($i+1) - Potential unredacted logging: $($line.Trim())"
+                }
+              }
+            }
+          }
+
+          if ($violations.Count -gt 0) {
+            Write-Host "⚠️  Found $($violations.Count) potential PHI logging violations:" -ForegroundColor Yellow
+            $violations | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            Write-Host "`n💡 Use redactPHI() before logging any data that might contain PHI" -ForegroundColor Cyan
+            exit 1
+          } else {
+            Write-Host "✅ No PHI logging violations detected" -ForegroundColor Green
+          }
+
+      - name: Scan C# files for unredacted PHI logging
+        shell: pwsh
+        run: |
+          $violations = @()
+
+          Write-Host "🔍 Scanning C# files for potential PHI in log statements..."
+
+          # PHI field names that should NEVER appear in log interpolation.
+          # Uses word boundaries (\b) to prevent false positives from substring
+          # matches (e.g., "TIN" matching "Posting", "DOB" matching "AdobeReader").
+          # Only matches actual log invocation lines (_logger.Log*), not field
+          # declarations, constructor params, or comments.
+          $phiPatterns = @(
+            '\bSSN\b|\bSocialSecurityNumber\b',
+            '\bDateOfBirth\b|\bdateOfBirth\b',
+            '\bMemberName\b|\bmemberName\b|\bPatientName\b|\bpatientName\b',
+            '\bStreetAddress\b|\bHomeAddress\b|\bPatientAddress\b',
+            '\bPhoneNumber\b|\bphoneNumber\b|\bTelephoneNumber\b',
+            '\bRoutingNumber\b|\broutingNumber\b',
+            '\bBankAccountNumber\b|\bbankAccountNumber\b'
+          )
+          $phiRegex = $phiPatterns -join '|'
+
+          $files = Get-ChildItem -Path ./src -Recurse -File -Include *.cs |
+                   Where-Object {
+                     $_.FullName -notmatch 'obj|bin|TestResults' -and
+                     $_.Name -notlike '*Tests.cs' -and
+                     $_.Name -notlike '*Test.cs'
+                   }
+
+          foreach ($file in $files) {
+            $lines = Get-Content $file.FullName
+
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+              $line = $lines[$i]
+
+              # Only match actual log invocation lines, not field declarations or constructors
+              if ($line -match '_logger\.Log(Information|Warning|Error|Debug|Critical|Trace)\(' -and
+                  $line -match $phiRegex -and
+                  $line -notmatch 'SanitizeForLog|Redact|REDACTED|\*\*\*' -and
+                  $line -notmatch '^\s*//') {
+                $violations += "❌ $($file.FullName):$($i+1) - Potential PHI in log: $($line.Trim())"
+              }
+            }
+          }
+
+          if ($violations.Count -gt 0) {
+            Write-Host "⚠️  Found $($violations.Count) potential PHI logging violations in C#:" -ForegroundColor Yellow
+            $violations | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            Write-Host "`n💡 Use SanitizeForLog() or redact PHI before logging." -ForegroundColor Cyan
+            Write-Host "NPI, MemberId, SubscriberId, AccountNumber, and Email are operational" -ForegroundColor Cyan
+            Write-Host "identifiers — not PHI in isolation. Only flag actual sensitive data." -ForegroundColor Cyan
+            exit 1
+          } else {
+            Write-Host "✅ No PHI logging violations detected in C# files" -ForegroundColor Green
+          }
+
+      - name: Check for hardcoded PHI patterns
+        shell: pwsh
+        run: |
+          Write-Host "🔍 Scanning for hardcoded PHI patterns..."
+          $patterns = @(
+            # SSN patterns (but allow test cases)
+            '(?<!\w)\d{3}-\d{2}-\d{4}(?!\w)',
+            # Email patterns in strings (but allow examples and company domains)
+            '[\w\.-]+@(?!example\.com|test\.com|healthplan\.com|cloudhealthoffice\.com|aurelianware\.com|[\w\.-]+\.test\b)[\w\.-]+\.\w+'
+          )
+
+          $violations = @()
+          # Use -File and exclude node_modules/dist from path
+          $files = Get-ChildItem -Path ./src,./scripts -Recurse -File -Include *.ts,*.js,*.json |
+                   Where-Object { $_.FullName -notmatch 'node_modules|dist' -and $_.Name -notlike '*.test.ts' -and $_.Name -ne 'package-lock.json' }
+
+          foreach ($file in $files) {
+            $content = Get-Content $file.FullName -Raw
+
+            foreach ($pattern in $patterns) {
+              if ($content -match $pattern) {
+                # Skip if in test files or clearly synthetic
+                if ($file.Name -notlike "*.test.ts" -and
+                    $file.Name -notlike "*example*" -and
+                    $content -notmatch 'TEST\d+|SYNTHETIC|FAKE') {
+
+                  $matches = [regex]::Matches($content, $pattern)
+                  foreach ($match in $matches) {
+                    $violations += "⚠️  $($file.FullName) - Potential real PHI: $($match.Value)"
+                  }
+                }
+              }
+            }
+          }
+
+          if ($violations.Count -gt 0) {
+            Write-Host "⚠️  Found $($violations.Count) potential hardcoded PHI:" -ForegroundColor Yellow
+            $violations | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            Write-Host "`n💡 Use synthetic test data only" -ForegroundColor Cyan
+            exit 1
+          } else {
+            Write-Host "✅ No hardcoded PHI detected" -ForegroundColor Green
+          }
+
+      - name: Verify HIPAA logger usage
+        run: |
+          echo "🔍 Verifying hipaaLogger is imported where needed..."
+
+          # Check if files that log data import hipaaLogger
+          files_with_logging=$(grep -r "console\.\(log\|info\|warn\|error\)" --include="*.ts" --exclude-dir=node_modules --exclude-dir=dist --exclude="*.test.ts" -l || true)
+
+          if [ -n "$files_with_logging" ]; then
+            echo "Files with logging:"
+            echo "$files_with_logging"
+
+            # This is informational only - we can't enforce it everywhere
+            # But we do require it in workflow files
+            workflow_files=$(echo "$files_with_logging" | grep -i workflow || true)
+
+            if [ -n "$workflow_files" ]; then
+              echo "⚠️  Workflow files contain logging - ensure hipaaLogger is used"
+            fi
+          fi
+
+          echo "✅ HIPAA logger verification complete"
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "✅ All PHI validation checks passed!"
+          echo "   - No unredacted logging detected"
+          echo "   - No hardcoded PHI found"
+          echo "   - HIPAA logging tests passed"

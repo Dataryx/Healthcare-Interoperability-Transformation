@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Million Claim Challenge Engineering Series | Cloud Health Office</title>
+  <meta name="description" content="Engineering field notes documenting how the Million Claim Challenge became a repeatable, inspectable claims-adjudication benchmark.">
+  <link rel="canonical" href="https://cloudhealthoffice.com/insights/million-claim-challenge">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Cloud Health Office">
+  <meta property="og:title" content="Million Claim Challenge Engineering Series">
+  <meta property="og:description" content="Engineering field notes documenting how the Million Claim Challenge became a repeatable, inspectable claims-adjudication benchmark.">
+  <meta property="og:url" content="https://cloudhealthoffice.com/insights/million-claim-challenge">
+  <meta property="og:image" content="https://cloudhealthoffice.com/graphics/og-million-claim-challenge.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="/css/sentinel.css">
+  <script src="/js/mobile-nav.js"></script>
+  <style>
+    .publication { max-width: 860px; margin: 0 auto; padding: 64px 24px 96px; }
+    .publication-nav { margin-bottom: 40px; color: #8b949e; }
+    .publication-nav a { color: #00ffff; }
+    .eyebrow { color: #00ff88; font-size: .8rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .publication h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.08; margin: 12px 0 20px; }
+    .publication h2 { margin-top: 52px; color: #00ffff; }
+    .publication p, .publication li { color: #c9d1d9; font-size: 1.05rem; line-height: 1.8; }
+    .publication code { color: #00ff88; background: #111820; padding: .12rem .35rem; border-radius: 4px; }
+    .disclosure { border-left: 4px solid #f0b429; background: rgba(240,180,41,.08); padding: 18px 22px; margin: 30px 0; }
+    .source-note { font-size: .9rem !important; color: #8b949e !important; }
+    .article-links { display: flex; flex-wrap: wrap; gap: 12px; margin: 40px 0; }
+    .article-links a { border: 1px solid rgba(0,255,255,.35); border-radius: 6px; padding: 10px 14px; color: #00ffff; text-decoration: none; }
+    .evidence-block { margin: 28px 0; border: 1px solid rgba(0,255,255,.22); border-radius: 8px; overflow: hidden; }
+    .evidence-block summary { cursor: pointer; padding: 18px 20px; color: #00ffff; font-weight: 700; background: #0d1117; }
+    .evidence-block pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 22px; background: #080c10; color: #c9d1d9; font-size: .84rem; line-height: 1.55; }
+    .article-figure { margin: 40px 0; }
+    .article-figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid rgba(0,255,255,.18); background: #000; }
+    .article-figure figcaption { margin-top: 12px; font-size: .85rem; color: #8b949e; text-align: center; line-height: 1.5; }
+    .table-wrap { margin: 28px 0; overflow-x: auto; border: 1px solid rgba(0,255,255,.22); border-radius: 8px; }
+    .table-wrap table { width: 100%; border-collapse: collapse; font-size: .95rem; font-variant-numeric: tabular-nums; }
+    .table-wrap th, .table-wrap td { padding: 10px 16px; text-align: left; border-bottom: 1px solid rgba(139,148,158,.2); white-space: nowrap; }
+    .table-wrap th { color: #00ffff; font-weight: 700; background: #0d1117; }
+    .table-wrap td { color: #c9d1d9; }
+    .table-wrap tr:last-child td { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <main class="publication">
+    <nav class="publication-nav"><a href="/">Home</a> / <a href="/insights">Insights</a> / <a href="/docs/million-claim-challenge">Million Claim Challenge</a></nav>
+    <div class="eyebrow">Engineering series</div><h1>Million Claim Challenge Field Notes</h1><p>How the benchmark moved from local Kubernetes runs to repeatable measurement, honest workflow scoring, and operator-facing evidence.</p><div class="disclosure"><strong>Current verified scope:</strong> the latest asynchronous local Kubernetes run reached the full 1,000,000-claim corpus at 155.89 claims/sec, with all claims eventually terminal. A separate 100,000-claim raw X12 837 run reached 199.42 claims/sec end-to-end. These are local validation results, not production-cloud capacity claims.</div><article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 5</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 5: From Faster to Repeatably Faster</h2><p>How the local Kubernetes sweep harness turned isolated fast runs into repeatable performance evidence.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-5-repeatably-faster">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-005">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 6</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 6: From Fast Runs to Honest Edge-Case Scoring</h2><p>Why paid is not the only correct outcome, and why unsupported scenarios must remain visible.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-6-honest-edge-case-scoring">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-006">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 7</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 7: From Benchmark Logs to an Operator Console</h2><p>Moving benchmark proof from terminal logs into an operator-facing Mass Adjudication console.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-7-operator-console">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-007">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 8</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 8: The Clean 100,000-Claim Run</h2><p>How stronger correctness gates reached a clean 100,000-claim run and exposed the next local scaling bottleneck.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-8-clean-100k">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-008">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 9</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 9: From Unsupported to Scored</h2><p>How prior-auth wrong-provider and behavioral-health scenarios moved from unsupported to deliberately scored platform behavior.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-9-from-unsupported-to-scored">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-009">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 10</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 10: The Migration Cost That Wasn't</h2><p>Testing Part 9's unconfirmed migration-cost theory at 250,000 claims, finding the real causes through profiling, and confirming a 3.5x throughput gain.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-10-the-migration-cost-that-wasnt">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-010">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 11</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 11: The Check That Only Ran in the Benchmark</h2><p>Re-investigating a bug Part 10 disclosed but didn't fix, and finding federal provider-exclusion screening had never been wired into the real adjudication pipeline at all.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-11-the-check-that-only-ran-in-the-benchmark">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-011">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 12</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 12: The Database Nobody Profiled</h2><p>Two benchmark fixture bugs, a Submit-chain bottleneck traced to an under-provisioned shared database, and this series' first clean 500,000-claim confirmation.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-12-the-database-nobody-profiled">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-012">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 13</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 13: The Gap Was the Laptop</h2><p>Closing the wall-clock gap disclosed in Part 10 and Part 12 by proving, with matching host sleep-log evidence, that it was macOS suspending the local Kubernetes cluster mid-run.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-13-the-gap-was-the-laptop">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-013">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 14</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 14: Zero Unsupported, Then the Parallelism Nobody Profiled</h2><p>Closing the scoring gap carried since Part 9 with a first-ever zero-unsupported run, then finding and fixing why parallelism 56 had quietly underperformed lower concurrency this whole series.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-14-zero-unsupported-parallelism">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-014">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 15</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 15: One Million Claims, and the Bug Only That Scale Could Find</h2><p>Running this series' first full 1,000,000-claim confirmation, finding a Redis memory ceiling that only that scale could expose, and fixing it live.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-15-one-million-claims">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-015">Inspect evidence</a></div></article>
+<article class="evidence-block" style="padding:22px"><div class="eyebrow">Part 16</div><h2 style="margin-top:8px">Running a Healthcare Claims Platform Locally in Kubernetes, Part 16: The Million Went Through the Bus</h2><p>Moving the full million-claim corpus onto asynchronous Service Bus adjudication, then proving the separate raw X12 837 onramp at 100,000 claims.</p><div class="article-links"><a href="/insights/million-claim-challenge/part-16-the-million-went-through-the-bus">Read article</a><a href="/docs/million-claim-challenge/evidence#episode-016">Inspect evidence</a></div></article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,95 @@
+name: Deploy API Docs
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'src/api-docs/**'
+      - 'api/openapi/**'
+      - 'containers/api-docs/**'
+      - 'infrastructure/k8s/services/api-docs.yaml'
+      - 'infrastructure/k8s/api-docs-ingress.yaml'
+      - 'infrastructure/k8s/api-docs-scaledobject.yaml'
+      - '.github/workflows/deploy-api-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  IMAGE_NAME: cloudhealthoffice-api-docs
+  RESOURCE_GROUP: rg-cloudhealthoffice-prod
+  AKS_CLUSTER: cho-aks
+
+jobs:
+  deploy:
+    name: Build & Deploy API Docs to AKS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Azure login via OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        run: az acr login --name ${{ vars.ACR_NAME }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG="${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
+          IMAGE_LATEST="${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest"
+          docker build -f containers/api-docs/Dockerfile . -t "${IMAGE_TAG}" -t "${IMAGE_LATEST}"
+          docker push "${IMAGE_TAG}"
+          docker push "${IMAGE_LATEST}"
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --name "${{ env.AKS_CLUSTER }}" \
+            --overwrite-existing
+
+      - name: Deploy to AKS
+        run: |
+          IMAGE_TAG="${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
+
+          # Ensure namespace exists
+          kubectl apply -f infrastructure/k8s/namespaces.yaml
+
+          # Apply manifests
+          kubectl apply -f infrastructure/k8s/services/api-docs.yaml
+          kubectl apply -f infrastructure/k8s/api-docs-ingress.yaml
+
+          # Update image to the new SHA-tagged version
+          kubectl set image deployment/api-docs \
+            api-docs="${IMAGE_TAG}" \
+            -n cloudhealthoffice
+
+          # Wait for rollout
+          kubectl rollout status deployment/api-docs \
+            -n cloudhealthoffice \
+            --timeout=120s
+
+          # Apply KEDA HTTP ScaledObject only if the CRD is present
+          if kubectl get crd httpscaledobjects.http.keda.sh >/dev/null 2>&1; then
+            echo "KEDA HTTP CRDs detected – applying api-docs ScaledObject..."
+            kubectl apply -f infrastructure/k8s/api-docs-scaledobject.yaml
+          else
+            echo "KEDA HTTP CRDs not found – skipping api-docs-scaledobject.yaml apply."
+          fi
+
+      - name: Verify health endpoint
+        run: |
+          echo "Verifying api-docs pod is ready..."
+          kubectl wait --for=condition=ready pod \
+            -l app=api-docs \
+            -n cloudhealthoffice \
+            --timeout=60s
+          echo "✅ API Docs pod is ready"

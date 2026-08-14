@@ -1,0 +1,372 @@
+/* ============================================
+   THE SENTINEL THEME - Cloud Health Office
+   Obsidian Black • Chromatic Neon • Kubrickian Future
+   Aligned with marketing site sentinel.css palette
+   ============================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* Brand Colors - Sentinel Palette (cyan + green, no magenta) */
+  --cho-black: #000000;
+  --cho-obsidian: #0a0a0a;
+  --cho-surface: #0f0f0f;
+  --cho-cyan: #00ffff;
+  --cho-green: #00ff88;
+  --cho-gray: #b0b0b0;
+  --cho-white: #ffffff;
+
+  /* Neon Glow Effects */
+  --glow-cyan: 0 0 10px rgba(0, 255, 255, 0.4), 0 0 20px rgba(0, 255, 255, 0.2);
+  --glow-green: 0 0 10px rgba(0, 255, 136, 0.4), 0 0 20px rgba(0, 255, 136, 0.2);
+  --glow-circuit: 0 0 15px rgba(0, 255, 255, 0.3), 0 0 30px rgba(0, 255, 136, 0.15);
+
+  /* Integrity rating shades (capability 5.10 — Decision 9). Two ratings
+     don't map cleanly onto MudBlazor's four-color palette
+     (Success/Warning/Error/Default); these custom shades sit between the
+     platform colors so all six rating values render losslessly. */
+  --cho-rating-caution: #ff7a1a;
+  --cho-rating-blocked: #8b0028;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--cho-black);
+  color: var(--cho-white);
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(0, 255, 255, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0, 255, 136, 0.03) 0%, transparent 50%);
+  background-attachment: fixed;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--cho-cyan);
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+a:hover {
+  color: var(--cho-white);
+  text-shadow: var(--glow-cyan);
+}
+
+/* ============================================
+   MudBlazor Component Overrides - Sentinel Aesthetic
+   ============================================ */
+
+/* Cards - Obsidian with cyan border */
+.mud-card {
+  background: var(--cho-obsidian) !important;
+  border: 1px solid rgba(0, 255, 255, 0.2) !important;
+  box-shadow: var(--glow-circuit) !important;
+  transition: all 0.3s ease !important;
+}
+
+.mud-card:hover {
+  border-color: rgba(0, 255, 255, 0.45) !important;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.4), 0 0 40px rgba(0, 255, 136, 0.2) !important;
+  transform: translateY(-2px);
+}
+
+/* Tables - Circuit grid aesthetic */
+.mud-table {
+  background: var(--cho-obsidian) !important;
+  border: 1px solid rgba(0, 255, 255, 0.15) !important;
+}
+
+.mud-table-head {
+  background: var(--cho-surface) !important;
+  border-bottom: 2px solid var(--cho-cyan) !important;
+}
+
+.mud-table-head .mud-table-cell {
+  color: var(--cho-cyan) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem !important;
+}
+
+.mud-table-row {
+  border-bottom: 1px solid rgba(0, 255, 255, 0.1) !important;
+  transition: all 0.2s ease !important;
+}
+
+.mud-table-row:hover {
+  background: rgba(0, 255, 255, 0.05) !important;
+  box-shadow: inset 3px 0 0 var(--cho-cyan);
+}
+
+/* Buttons */
+.mud-button-root {
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
+}
+
+.mud-button-filled-primary {
+  background: linear-gradient(135deg, rgba(0, 255, 255, 0.2), rgba(0, 255, 255, 0.1)) !important;
+  border: 1px solid var(--cho-cyan) !important;
+  color: var(--cho-cyan) !important;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3) !important;
+}
+
+.mud-button-filled-primary:hover {
+  background: linear-gradient(135deg, rgba(0, 255, 255, 0.3), rgba(0, 255, 255, 0.15)) !important;
+  box-shadow: var(--glow-cyan) !important;
+  transform: translateY(-1px);
+}
+
+.mud-button-filled-secondary {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 255, 136, 0.1)) !important;
+  border: 1px solid var(--cho-green) !important;
+  color: var(--cho-green) !important;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3) !important;
+}
+
+.mud-button-filled-secondary:hover {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.3), rgba(0, 255, 136, 0.15)) !important;
+  box-shadow: var(--glow-green) !important;
+  transform: translateY(-1px);
+}
+
+/* Inputs */
+.mud-input-underline:before {
+  border-bottom-color: rgba(0, 255, 255, 0.3) !important;
+}
+
+.mud-input-underline:after {
+  border-bottom-color: var(--cho-cyan) !important;
+  box-shadow: 0 1px 4px rgba(0, 255, 255, 0.4);
+}
+
+.mud-input-outlined .mud-input-outlined-border {
+  border-color: rgba(0, 255, 255, 0.3) !important;
+}
+
+.mud-input-outlined:hover .mud-input-outlined-border,
+.mud-input-outlined.mud-input-focused .mud-input-outlined-border {
+  border-color: var(--cho-cyan) !important;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.3);
+}
+
+/* Chips */
+.mud-chip {
+  background: rgba(0, 255, 255, 0.05) !important;
+  border: 1px solid rgba(0, 255, 255, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+.mud-chip:hover {
+  background: rgba(0, 255, 255, 0.1) !important;
+  border-color: var(--cho-cyan) !important;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.3);
+}
+
+/* Dialogs */
+.mud-dialog {
+  background: var(--cho-obsidian) !important;
+  border: 1px solid rgba(0, 255, 255, 0.3) !important;
+  box-shadow: 0 0 30px rgba(0, 255, 255, 0.4), 0 0 60px rgba(0, 255, 136, 0.15) !important;
+}
+
+.mud-dialog-title {
+  color: var(--cho-cyan) !important;
+  font-weight: 700 !important;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.2) !important;
+}
+
+/* Navigation */
+.mud-nav-link.active {
+  color: var(--cho-cyan) !important;
+  background: rgba(0, 255, 255, 0.1) !important;
+  border-left: 3px solid var(--cho-cyan) !important;
+  box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.mud-nav-link:hover {
+  background: rgba(0, 255, 255, 0.05) !important;
+  border-left-color: rgba(0, 255, 255, 0.5) !important;
+}
+
+/* Progress indicators */
+.mud-progress-linear .mud-progress-linear-bar {
+  background: linear-gradient(90deg, var(--cho-cyan), var(--cho-green)) !important;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+.mud-progress-circular-circle {
+  stroke: var(--cho-cyan) !important;
+  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.5));
+}
+
+/* Badges */
+.mud-badge {
+  background: var(--cho-green) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+  font-weight: 700;
+}
+
+/* Alerts */
+.mud-alert {
+  background: rgba(0, 255, 255, 0.05) !important;
+  border-left: 3px solid var(--cho-cyan) !important;
+  color: var(--cho-white) !important;
+}
+
+.mud-alert-filled-success {
+  background: rgba(0, 255, 136, 0.15) !important;
+  border-left-color: var(--cho-green) !important;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+}
+
+.mud-alert-filled-error {
+  background: rgba(255, 0, 85, 0.15) !important;
+  border-left-color: #ff0055 !important;
+  box-shadow: 0 0 10px rgba(255, 0, 85, 0.2);
+}
+
+/* Tooltips */
+.mud-tooltip {
+  background: var(--cho-obsidian) !important;
+  border: 1px solid var(--cho-cyan) !important;
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+  color: var(--cho-white) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--cho-obsidian);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 255, 0.5);
+  box-shadow: 0 0 6px rgba(0, 255, 255, 0.4);
+}
+
+/* ============================================
+   Animations - aligned with marketing site
+   ============================================ */
+
+@keyframes sentinel-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes circuit-pulse {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.07; }
+}
+
+@keyframes scan-line {
+  0% { top: -4px; }
+  100% { top: 110%; }
+}
+
+/* Loading skeleton */
+.mud-skeleton {
+  background: linear-gradient(90deg,
+    rgba(0, 255, 255, 0.1) 0%,
+    rgba(0, 255, 255, 0.2) 50%,
+    rgba(0, 255, 255, 0.1) 100%) !important;
+  animation: sentinel-pulse 2s ease-in-out infinite;
+}
+
+/* ============================================
+   Custom Component Classes
+   ============================================ */
+
+/* Stats cards */
+.stat-card {
+  background: linear-gradient(135deg, rgba(0, 255, 255, 0.05), rgba(0, 255, 136, 0.03));
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  padding: 24px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--cho-cyan);
+  box-shadow: var(--glow-circuit);
+  transform: translateY(-4px);
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cho-cyan), var(--cho-green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Signature branding element */
+.sentinel-brand {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: rgba(0, 255, 255, 0.6);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+/* Circuit pattern background */
+.circuit-bg {
+  background-image:
+    repeating-linear-gradient(90deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 255, 0.03) 2px,
+      rgba(0, 255, 255, 0.03) 3px),
+    repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 255, 0.03) 2px,
+      rgba(0, 255, 255, 0.03) 3px);
+  background-size: 50px 50px;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,1147 @@
+@page "/mass-adjudication-runs"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@using CloudHealthOffice.Portal.Services
+@inject IClaimsService ClaimsService
+@inject ISnackbar Snackbar
+
+<PageTitle>Mass Adjudication Runs — Cloud Health Office</PageTitle>
+
+<PermissionGate Permission="claims:read" RoleName="ClaimsSupervisor">
+<div class="mass-runs-page">
+<MudText Typo="Typo.h4" Class="mb-1" Style="color: #00ffff; font-weight: 700;">
+    <MudIcon Icon="@Icons.Material.Filled.Assessment" Class="mr-2" Style="vertical-align: middle;" />
+    Mass Adjudication Runs
+</MudText>
+<MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.55);" Class="mb-4">
+    Million Claim Challenge and production mass adjudication evidence: outcome mix, workflow scoring, timing, and platform failure signal.
+</MudText>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _error = null">
+        @_error
+    </MudAlert>
+}
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+}
+
+<MudGrid Spacing="3" Class="mb-4">
+    <MudItem xs="6" sm="2">
+        <MudPaper Class="pa-3 d-flex align-center gap-3" Style="background: rgba(0,255,255,0.05); border: 1px solid rgba(0,255,255,0.2); border-radius: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.PlayCircle" Style="color: #00ffff; font-size: 2rem;" />
+            <div>
+                <MudText Typo="Typo.h5" Style="color: #00ffff; font-weight: 700;">@_runs.Count</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">Runs</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="2">
+        <MudPaper Class="pa-3 d-flex align-center gap-3" Style="background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.2); border-radius: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="color: #00ff88; font-size: 2rem;" />
+            <div>
+                <MudText Typo="Typo.h5" Style="color: #00ff88; font-weight: 700;">@_runs.Sum(x => x.Processed).ToString("N0")</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">Processed Claims</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="2">
+        <MudPaper Class="pa-3 d-flex align-center gap-3" Style="background: rgba(255,202,40,0.06); border: 1px solid rgba(255,202,40,0.25); border-radius: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.PendingActions" Style="color: #ffca28; font-size: 2rem;" />
+            <div>
+                <MudText Typo="Typo.h5" Style="color: #ffca28; font-weight: 700;">@_runs.Sum(x => x.Pended).ToString("N0")</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">Pended</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="2">
+        <MudPaper Class="pa-3 d-flex align-center gap-3" Style="background: rgba(255,202,40,0.06); border: 1px solid rgba(255,202,40,0.25); border-radius: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.Rule" Style="color: #ffca28; font-size: 2rem;" />
+            <div>
+                <MudText Typo="Typo.h5" Style="color: #ffca28; font-weight: 700;">@_runs.Sum(x => x.BusinessDenials).ToString("N0")</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">Business Denials</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="2">
+        <MudPaper Class="pa-3 d-flex align-center gap-3" Style="background: rgba(148,163,184,0.08); border: 1px solid rgba(148,163,184,0.25); border-radius: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.VisibilityOff" Style="color: #94a3b8; font-size: 2rem;" />
+            <div>
+                <MudText Typo="Typo.h5" Style="color: #cbd5e1; font-weight: 700;">@_runs.Sum(x => x.WorkflowUnsupported).ToString("N0")</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">Unsupported</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="2">
+        <MudPaper Class="pa-3 d-flex align-center gap-3" Style="background: rgba(255,0,85,0.05); border: 1px solid rgba(255,0,85,0.2); border-radius: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Style="color: #ff0055; font-size: 2rem;" />
+            <div>
+                <MudText Typo="Typo.h5" Style="color: #ff0055; font-weight: 700;">@_runs.Sum(x => x.PlatformFailures).ToString("N0")</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">Platform Failures</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<div class="d-flex align-center gap-3 mb-4">
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.Refresh"
+               OnClick="@(() => LoadRuns())"
+               Disabled="_loading">
+        Refresh
+    </MudButton>
+    <MudButton Variant="@(_autoRefresh ? Variant.Filled : Variant.Outlined)"
+               Color="@(_autoRefresh ? Color.Success : Color.Default)"
+               StartIcon="@(_autoRefresh ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff)"
+               OnClick="ToggleAutoRefresh"
+               Disabled="_loading">
+        @(_autoRefresh ? "Watching" : "Watch Runs")
+    </MudButton>
+    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">
+        @RefreshStatus
+    </MudText>
+    @if (_runs.Any(IsRunActive))
+    {
+        <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Sync">
+            @_runs.Count(IsRunActive) running
+        </MudChip>
+    }
+    <MudSpacer />
+    @if (_selectedRun is not null)
+    {
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Info"
+                   StartIcon="@Icons.Material.Filled.ReceiptLong"
+                   Href="@ClaimsSearchHref(_selectedRun.Id)">
+            View Claims
+        </MudButton>
+        <MudChip T="string" Color="@(_selectedRun.PlatformFailures == 0 ? Color.Success : Color.Error)" Size="Size.Small">
+            @(_selectedRun.PlatformFailures == 0 ? "Clean Run" : "Platform Failures")
+        </MudChip>
+    }
+</div>
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" lg="5">
+        <MudTable Items="_runs" Dense="true" Hover="true" T="MassAdjudicationRunSummary"
+                  Style="background: rgba(10,10,10,0.9); border: 1px solid rgba(0,255,255,0.15); border-radius: 8px;">
+            <HeaderContent>
+                <MudTh>Run</MudTh>
+                <MudTh>Processed</MudTh>
+                <MudTh>Claims/sec</MudTh>
+                <MudTh>P95</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Run">
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => SelectRun(context))" Style="padding-left: 0;">
+                        @context.Run.StartedAtUtc.LocalDateTime.ToString("MM/dd HH:mm")
+                    </MudButton>
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-family: monospace;">
+                        @($"{ShortId(context.Id)} · p{context.Run.Parallelism}")
+                    </MudText>
+                    @if (IsRunActive(context))
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Sync" Class="mt-1">
+                            @RunStatusLabel(context)
+                        </MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Processed">
+                    <MudText Typo="Typo.body2">@context.Processed.ToString("N0") / @context.TotalClaims.ToString("N0")</MudText>
+                    <MudProgressLinear Value="@PercentProcessed(context)"
+                                       Color="@(context.PlatformFailures == 0 ? Color.Success : Color.Error)"
+                                       Style="width: 90px; height: 6px; border-radius: 3px;" />
+                </MudTd>
+                <MudTd DataLabel="Claims/sec">
+                    <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.ThroughputClaimsPerSecond.ToString("N2")/s</MudText>
+                </MudTd>
+                <MudTd DataLabel="P95">
+                    <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.P95LatencyMilliseconds.ToString("N0") ms</MudText>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <div class="pa-8 text-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Assessment" Style="font-size: 3rem; color: rgba(0,255,255,0.3);" />
+                    <MudText Typo="Typo.body1" Class="mt-2" Style="color: rgba(255,255,255,0.55);">No mass adjudication runs found</MudText>
+                </div>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
+            </PagerContent>
+        </MudTable>
+    </MudItem>
+
+    <MudItem xs="12" lg="7">
+        @if (_selectedRun is null)
+        {
+            <MudPaper Class="pa-6 text-center" Style="background: rgba(10,10,10,0.75); border: 1px solid rgba(0,255,255,0.15); border-radius: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.TouchApp" Style="font-size: 3rem; color: rgba(0,255,255,0.35);" />
+                <MudText Typo="Typo.body1" Style="color: rgba(255,255,255,0.65);">Select a run to inspect adjudication outcomes.</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="pa-4 mb-3" Style="background: rgba(10,10,10,0.9); border: 1px solid rgba(0,255,255,0.15); border-radius: 8px;">
+                <div class="d-flex align-center gap-2 mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Analytics" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6" Style="font-weight: 700;">Run Detail</MudText>
+                    <MudSpacer />
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-family: monospace;">@_selectedRun.Id</MudText>
+                </div>
+
+                <MudGrid Spacing="2" Class="mb-3">
+                    @if (IsRunActive(_selectedRun))
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-1">
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.body2">
+                                        @RunProgressText(_selectedRun)
+                                    </MudText>
+                                    <MudSpacer />
+                                    <MudText Typo="Typo.caption" Style="font-family: monospace;">
+                                        @LastProgressText(_selectedRun)
+                                    </MudText>
+                                </div>
+                                <MudProgressLinear Value="@PercentProcessed(_selectedRun)"
+                                                   Color="Color.Info"
+                                                   Class="mt-2"
+                                                   Style="height: 6px; border-radius: 3px;" />
+                            </MudAlert>
+                        </MudItem>
+                    }
+                    <MudItem xs="6" md="4">@Metric("Processed", $"{_selectedRun.Processed:N0}", "#00ffff")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Paid", $"{_selectedRun.Paid:N0}", "#00ff88")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Pended", $"{_selectedRun.Pended:N0}", "#ffca28")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Business Denials", $"{_selectedRun.BusinessDenials:N0}", "#ffca28")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Platform Failures", $"{_selectedRun.PlatformFailures:N0}", "#ff0055")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Observation Timeouts", $"{_selectedRun.ObservationTimeouts:N0}", _selectedRun.ObservationTimeouts == 0 ? "#00ff88" : "#ff0055")</MudItem>
+                    @if (_selectedRun.ServiceBusObservationTimeouts > 0)
+                    {
+                        <MudItem xs="6" md="4">@Metric("SB Window Timeouts", $"{_selectedRun.ServiceBusObservationTimeouts:N0}", "#ffca28")</MudItem>
+                        <MudItem xs="6" md="4">@Metric("SB Late Completions", $"{_selectedRun.ServiceBusLateCompletions:N0}", _selectedRun.ServiceBusLateCompletions == _selectedRun.ServiceBusObservationTimeouts ? "#00ff88" : "#ffca28")</MudItem>
+                        <MudItem xs="6" md="4">@Metric("SB Unreconciled", $"{_selectedRun.ServiceBusUnreconciledClaims:N0}", _selectedRun.ServiceBusUnreconciledClaims == 0 ? "#00ff88" : "#ff0055")</MudItem>
+                    }
+                    <MudItem xs="6" md="4">@Metric("Claims/sec", $"{_selectedRun.ThroughputClaimsPerSecond:N2}/s", "#7dd3fc")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("P95 / P99", $"{_selectedRun.P95LatencyMilliseconds:N0} / {_selectedRun.P99LatencyMilliseconds:N0} ms", "#c084fc")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Workflow Checks", $"{_selectedRun.WorkflowMatches:N0} / {_selectedRun.WorkflowScenarios:N0}", "#00ff88")</MudItem>
+                    <MudItem xs="6" md="4">@Metric(WorkflowMismatchLabel(_selectedRun), $"{_selectedRun.WorkflowMismatches:N0}", _selectedRun.WorkflowMismatches == 0 ? "#00ff88" : "#ff0055")</MudItem>
+                    @if (IsRunActive(_selectedRun) && PendingWorkflowObservations(_selectedRun) > 0)
+                    {
+                        <MudItem xs="6" md="4">@Metric("Checks Pending", $"{PendingWorkflowObservations(_selectedRun):N0}", "#ffca28")</MudItem>
+                    }
+                    <MudItem xs="6" md="4">@Metric("Unsupported", $"{_selectedRun.WorkflowUnsupported:N0}", "#cbd5e1")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Workflow Timeouts", $"{_selectedRun.WorkflowObservationTimeouts:N0}", _selectedRun.WorkflowObservationTimeouts == 0 ? "#00ff88" : "#ff0055")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Payment Gate", PaymentGateLabel(_selectedRun), _selectedRun.PaymentMismatches == 0 ? "#00ff88" : "#ff0055")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Payment Mismatches", $"{_selectedRun.PaymentMismatches:N0}", _selectedRun.PaymentMismatches == 0 ? "#00ff88" : "#ff0055")</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Max Payment Delta", _selectedRun.MaximumPaymentDelta?.ToString("C") ?? "-", PaymentDeltaColor(_selectedRun.MaximumPaymentDelta, PaymentTolerance(_selectedRun)))</MudItem>
+                    <MudItem xs="6" md="4">@Metric("Avg Payment Delta", _selectedRun.AveragePaymentDelta?.ToString("C") ?? "-", PaymentDeltaColor(_selectedRun.AveragePaymentDelta, PaymentTolerance(_selectedRun)))</MudItem>
+                    @if (_selectedRun.LifecycleTimings.Count > 0)
+                    {
+                        <MudItem xs="6" md="4">@Metric("Preparation", FormatDuration(PreparationDuration(_selectedRun)), "#facc15")</MudItem>
+                        <MudItem xs="6" md="4">@Metric("Tracked Lifecycle", FormatDuration(LifecycleDuration(_selectedRun)), "#7dd3fc")</MudItem>
+                    }
+                    @if (_selectedRun.Progress is not null)
+                    {
+                        <MudItem xs="6" md="4">@Metric("Run Status", RunStatusLabel(_selectedRun), IsRunActive(_selectedRun) ? "#7dd3fc" : "#00ff88")</MudItem>
+                        <MudItem xs="6" md="4">@Metric("Last Progress", LastProgressText(_selectedRun), "#cbd5e1")</MudItem>
+                    }
+                </MudGrid>
+
+                <MudGrid Spacing="2" Class="mb-3">
+                    <MudItem xs="12" md="4">@RunFact("Seed / Parallelism", $"{_selectedRun.Run.Seed} / p{_selectedRun.Run.Parallelism}")</MudItem>
+                    <MudItem xs="12" md="4">@RunFact("Line of Business", LineOfBusinessLabel(_selectedRun.Run.LineOfBusiness))</MudItem>
+                    <MudItem xs="12" md="4">@RunFact("Seeding", $"members {OnOff(_selectedRun.Run.SeedMembers)} · providers {OnOff(_selectedRun.Run.SeedProviders)}")</MudItem>
+                </MudGrid>
+
+                @if (_selectedRun.PaymentDeltaDistribution.Count > 0)
+                {
+                    <MudDivider Class="my-3" Style="border-color: rgba(0,255,255,0.12);" />
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.65); font-weight: 700;">Payment Delta Distribution</MudText>
+                    <MudGrid Spacing="2" Class="mt-1 mb-3">
+                        @foreach (var bucket in _selectedRun.PaymentDeltaDistribution)
+                        {
+                            <MudItem xs="6" sm="4" md="2">
+                                @Metric(bucket.Label, $"{bucket.Count:N0}", PaymentDeltaBucketColor(bucket))
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+
+                @if (HasFixturePreparation(_selectedRun))
+                {
+                    var fixture = _selectedRun.FixturePreparation!;
+                    <MudDivider Class="my-3" Style="border-color: rgba(0,255,255,0.12);" />
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.65); font-weight: 700;">Fixture Preparation</MudText>
+                    <MudText Typo="Typo.caption" Class="d-block mt-1" Style="color: rgba(255,255,255,0.62);">
+                        Preparation bottleneck: @PreparationBottleneck(_selectedRun)
+                    </MudText>
+                    <MudGrid Spacing="2" Class="mt-1 mb-3">
+                        <MudItem xs="12" sm="6" md="4">
+                            @FixtureFact("Generated Corpus", $"{fixture.GeneratedClaims:N0} claims", "deterministic synthetic claims")
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            @FixtureFact(
+                                "Provider Pool",
+                                $"{fixture.ProviderPoolDistinctBefore:N0} -> {fixture.ProviderPoolDistinctAfter:N0}",
+                                $"{fixture.ProviderPoolReusedAssignments:N0} reused · {fixture.ProviderPoolProtectedClaims:N0} protected")
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            @FixtureFact(
+                                "Members",
+                                $"{fixture.MembersCreated:N0} new / {fixture.MembersExisting:N0} existing",
+                                MemberFixtureLabel(_selectedRun, fixture))
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            @FixtureFact(
+                                "COB Coverage",
+                                $"{fixture.CobCoverageCreated:N0} new / {fixture.CobCoverageExisting:N0} existing",
+                                CobCoverageLabel(_selectedRun, fixture))
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            @FixtureFact(
+                                "Provider Networks",
+                                $"{fixture.ProviderNetworksCreated:N0} new / {fixture.ProviderNetworksExisting:N0} existing",
+                                ProviderNetworkLabel(_selectedRun, fixture))
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            @FixtureFact(
+                                "Providers",
+                                $"{fixture.ProvidersCreated:N0} new / {fixture.ProvidersExisting:N0} existing",
+                                ProviderCacheLabel(_selectedRun, fixture))
+                        </MudItem>
+                    </MudGrid>
+                }
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="4">@Timing(_selectedRun.SubmitTiming)</MudItem>
+                    <MudItem xs="12" sm="4">@Timing(_selectedRun.AdjudicateTiming)</MudItem>
+                    <MudItem xs="12" sm="4">@Timing(_selectedRun.WritebackTiming)</MudItem>
+                </MudGrid>
+
+                @if (_selectedRun.LifecycleTimings.Count > 0)
+                {
+                    <MudDivider Class="my-3" Style="border-color: rgba(0,255,255,0.12);" />
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.65); font-weight: 700;">Run Lifecycle</MudText>
+                    <MudGrid Spacing="2" Class="mt-1">
+                        @foreach (var timing in _selectedRun.LifecycleTimings)
+                        {
+                            <MudItem xs="12" sm="6" md="4">@LifecycleTiming(timing)</MudItem>
+                        }
+                    </MudGrid>
+                }
+
+                @if (_selectedRun.AdjudicationStepTimings.Count > 0)
+                {
+                    <MudDivider Class="my-3" Style="border-color: rgba(0,255,255,0.12);" />
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.65); font-weight: 700;">Adjudication Sub-Steps</MudText>
+                    <MudGrid Spacing="2" Class="mt-1">
+                        @foreach (var timing in _selectedRun.AdjudicationStepTimings.Take(6))
+                        {
+                            <MudItem xs="12" sm="6" md="4">@Timing(timing)</MudItem>
+                        }
+                    </MudGrid>
+                }
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-3" Style="background: rgba(10,10,10,0.9); border: 1px solid rgba(0,255,255,0.15); border-radius: 8px;">
+                <div class="d-flex align-center gap-2 mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.ManageSearch" Color="Color.Primary" />
+                    <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">Claim Results</MudText>
+                    <MudSpacer />
+                    <MudSelect T="string" Value="_claimResultFilter" ValueChanged="OnClaimResultFilterChanged"
+                               Dense="true" Variant="Variant.Outlined" Style="width: 220px;">
+                        <MudSelectItem Value="@("")">All results</MudSelectItem>
+                        <MudSelectItem Value="@("Paid")">Paid</MudSelectItem>
+                        <MudSelectItem Value="@("Pended")">Pended</MudSelectItem>
+                        <MudSelectItem Value="@("BusinessDenial")">Business denials</MudSelectItem>
+                        <MudSelectItem Value="@("validation:Unsupported")">Unsupported</MudSelectItem>
+                        <MudSelectItem Value="@("validation:Mismatched")">Mismatches</MudSelectItem>
+                        <MudSelectItem Value="@("payment:Mismatched")">Payment mismatches</MudSelectItem>
+                        <MudSelectItem Value="@("payment:Scored")">Payment scored</MudSelectItem>
+                        <MudSelectItem Value="@("ObservationTimeout")">Observation timeouts</MudSelectItem>
+                        <MudSelectItem Value="@("PlatformFailure")">Platform failures</MudSelectItem>
+                    </MudSelect>
+                </div>
+
+                @if (_claimResultsLoading)
+                {
+                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-3" />
+                }
+
+                <MudTable Items="_claimResults" Dense="true" Hover="true" T="MassAdjudicationClaimResult" RowsPerPage="10">
+                    <HeaderContent>
+                        <MudTh>Claim</MudTh>
+                        <MudTh>Validation</MudTh>
+                        <MudTh>Outcome</MudTh>
+                        <MudTh>Denial / Failure</MudTh>
+                        <MudTh>Latency</MudTh>
+                        <MudTh>Payment</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Claim" Style="min-width: 170px;">
+                            @if (!string.IsNullOrWhiteSpace(context.SubmittedClaimId))
+                            {
+                                <MudLink Href="@ClaimHref(context.SubmittedClaimId!, _selectedRun?.Id)" Color="Color.Primary" Style="font-family: monospace; font-weight: 700; white-space: nowrap; display: inline-block;">
+                                    @DisplayClaimId(context)
+                                </MudLink>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Style="font-family: monospace; font-weight: 700; white-space: nowrap;">@DisplayClaimId(context)</MudText>
+                            }
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-family: monospace; display: block; white-space: nowrap;">
+                                @context.ClaimType · @ShortId(context.SubmittedClaimId ?? context.Id)
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Validation">
+                            @if (!string.IsNullOrWhiteSpace(context.ValidationScenario))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="@ValidationColor(context.ValidationStatus)">
+                                    @ValidationLabel(context.ValidationStatus)
+                                </MudChip>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-family: monospace;">
+                                    @context.ValidationScenario
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35);">Unscored</MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Outcome">
+                            <MudChip T="string" Size="Size.Small" Color="@OutcomeColor(context.Outcome)">
+                                @OutcomeLabel(context.Outcome)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Denial / Failure">
+                            <MudText Typo="Typo.body2">@(!string.IsNullOrWhiteSpace(context.BusinessDenialCode) ? context.BusinessDenialCode : context.FailureStage ?? "-")</MudText>
+                            @if (!string.IsNullOrWhiteSpace(context.Error))
+                            {
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">@context.Error</MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Latency">
+                            <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.ElapsedMilliseconds.ToString("N0") ms</MudText>
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-family: monospace;">
+                                s @context.SubmitMilliseconds.ToString("N0") / a @context.AdjudicationMilliseconds.ToString("N0") / w @context.WritebackMilliseconds.ToString("N0")
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Payment">
+                            <MudText Typo="Typo.body2" Style="font-family: monospace;">@(context.ActualPlanPayment?.ToString("C") ?? "-")</MudText>
+                            @if (context.ExpectedPlanPayment.HasValue)
+                            {
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-family: monospace;">
+                                    expected @context.ExpectedPlanPayment.Value.ToString("C")
+                                </MudText>
+                            }
+                            @if (context.PaymentDelta.HasValue)
+                            {
+                                <MudText Typo="Typo.caption" Style="@($"color: {PaymentDeltaColor(context.PaymentDelta, PaymentTolerance(_selectedRun))}; font-family: monospace;")">
+                                    delta @context.PaymentDelta.Value.ToString("C")
+                                </MudText>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <div class="pa-5 text-center">
+                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.55);">No claim-level results were published for this run.</MudText>
+                        </div>
+                    </NoRecordsContent>
+                    <PagerContent>
+                        <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
+                    </PagerContent>
+                </MudTable>
+            </MudPaper>
+
+            @if (_selectedRun.WorkflowScenarioBreakdown.Count > 0)
+            {
+                <MudPaper Class="pa-4 mb-3" Style="background: rgba(10,10,10,0.9); border: 1px solid rgba(0,255,255,0.15); border-radius: 8px;">
+                    <div class="d-flex align-center gap-2 mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.FactCheck" Color="Color.Primary" />
+                        <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">Workflow Scenario Breakdown</MudText>
+                        <MudSpacer />
+                        <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45);">
+                            Matched, mismatched, unsupported, and observation-timeout counts by answer-key scenario.
+                        </MudText>
+                    </div>
+
+                    <MudTable Items="@_selectedRun.WorkflowScenarioBreakdown" Dense="true" Hover="true" T="MassAdjudicationWorkflowScenarioSummary" RowsPerPage="10">
+                        <HeaderContent>
+                            <MudTh>Scenario</MudTh>
+                            <MudTh>Matched</MudTh>
+                            <MudTh>Mismatched</MudTh>
+                            <MudTh>Unsupported</MudTh>
+                            <MudTh>Timeouts</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Scenario">
+                                <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.Scenario</MudText>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45);">@context.Total.ToString("N0") total checks</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Matched">
+                                <MudText Typo="Typo.body2" Style="font-family: monospace; color: #00ff88;">@context.Matches.ToString("N0")</MudText>
+                                <MudProgressLinear Value="@ScenarioPercent(context.Matches, context.Total)" Color="Color.Success" Style="height: 5px; border-radius: 3px;" />
+                            </MudTd>
+                            <MudTd DataLabel="Mismatched">
+                                <MudText Typo="Typo.body2" Style="@ScenarioCountStyle(context.Mismatches, "#ff0055")">@context.Mismatches.ToString("N0")</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Unsupported">
+                                <MudText Typo="Typo.body2" Style="@ScenarioCountStyle(context.Unsupported, "#cbd5e1")">@context.Unsupported.ToString("N0")</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Timeouts">
+                                <MudText Typo="Typo.body2" Style="@ScenarioCountStyle(context.ObservationTimeouts, "#ff0055")">@context.ObservationTimeouts.ToString("N0")</MudText>
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
+                        </PagerContent>
+                    </MudTable>
+                </MudPaper>
+            }
+
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="6">
+                    <MudPaper Class="pa-4" Style="background: rgba(10,10,10,0.9); border: 1px solid rgba(255,202,40,0.18); border-radius: 8px;">
+                        <MudText Typo="Typo.subtitle2" Class="mb-3" Style="color: #ffca28; font-weight: 700;">Business Denial Breakdown</MudText>
+                        @foreach (var denial in _selectedRun.BusinessDenialBreakdown.Take(8))
+                        {
+                            <div class="mb-2">
+                                <div class="d-flex align-center">
+                                    <MudText Typo="Typo.body2">@denial.Code</MudText>
+                                    <MudSpacer />
+                                    <MudText Typo="Typo.body2" Style="font-family: monospace;">@denial.Count.ToString("N0")</MudText>
+                                </div>
+                                <MudProgressLinear Value="@DenialPercent(denial.Count)" Color="Color.Warning" Style="height: 5px; border-radius: 3px;" />
+                            </div>
+                        }
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudPaper Class="pa-4" Style="background: rgba(10,10,10,0.9); border: 1px solid rgba(255,0,85,0.16); border-radius: 8px;">
+                        <MudText Typo="Typo.subtitle2" Class="mb-3" Style="color: #ff6b9a; font-weight: 700;">Sample Platform Failures</MudText>
+                        @if (_selectedRun.SampleFailures.Count == 0)
+                        {
+                            <MudAlert Severity="Severity.Success" Variant="Variant.Outlined">No platform failures were reported for this run.</MudAlert>
+                        }
+                        else
+                        {
+                            @foreach (var failure in _selectedRun.SampleFailures)
+                            {
+                                <MudText Typo="Typo.body2" Style="font-family: monospace;">@failure.GeneratedClaimId · @failure.Stage</MudText>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.55);">@failure.Error</MudText>
+                                <MudDivider Class="my-2" />
+                            }
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudItem>
+</MudGrid>
+</div>
+</PermissionGate>
+
+@code {
+    private const decimal LegacyPaymentTolerance = 0.01m;
+    private readonly List<MassAdjudicationRunSummary> _runs = new();
+    private readonly List<MassAdjudicationClaimResult> _claimResults = new();
+    private MassAdjudicationRunSummary? _selectedRun;
+    private bool _loading;
+    private bool _claimResultsLoading;
+    private bool _autoRefresh;
+    private string _claimResultFilter = string.Empty;
+    private string? _error;
+    private DateTimeOffset? _lastRefreshedAt;
+    private int _newRunsSeen;
+    private CancellationTokenSource? _refreshCts;
+    private PeriodicTimer? _refreshTimer;
+
+    [SupplyParameterFromQuery(Name = "run")]
+    public string? RunId { get; set; }
+
+    private string RefreshStatus
+        => _lastRefreshedAt is null
+            ? "Not checked yet"
+            : $"{(_autoRefresh ? "Watching for newly published runs" : "Last checked")} {_lastRefreshedAt.Value.LocalDateTime:HH:mm:ss}"
+              + (_newRunsSeen > 0 ? $" · {_newRunsSeen} new this session" : string.Empty);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRuns();
+    }
+
+    private async Task LoadRuns(bool preserveSelection = true, bool silent = false)
+    {
+        if (!silent)
+        {
+            _loading = true;
+        }
+
+        _error = null;
+        try
+        {
+            var previousSelectedId = preserveSelection ? _selectedRun?.Id ?? RunId : RunId;
+            var previousRunIds = _runs.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var runs = await ClaimsService.GetMassAdjudicationRunsAsync(50);
+            var newRunCount = previousRunIds.Count == 0
+                ? 0
+                : runs.Count(x => !previousRunIds.Contains(x.Id));
+
+            _runs.Clear();
+            _runs.AddRange(runs);
+            _selectedRun = previousSelectedId is null
+                ? _runs.FirstOrDefault()
+                : _runs.FirstOrDefault(x => string.Equals(x.Id, previousSelectedId, StringComparison.OrdinalIgnoreCase))
+                  ?? _runs.FirstOrDefault();
+            _lastRefreshedAt = DateTimeOffset.Now;
+
+            if (newRunCount > 0)
+            {
+                _newRunsSeen += newRunCount;
+                Snackbar.Add($"{newRunCount} new mass adjudication run{(newRunCount == 1 ? string.Empty : "s")} published", Severity.Info);
+            }
+
+            await LoadClaimResults(silent);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            if (!silent)
+            {
+                Snackbar.Add("Unable to load mass adjudication runs", Severity.Error);
+            }
+        }
+        finally
+        {
+            if (!silent)
+            {
+                _loading = false;
+            }
+        }
+    }
+
+    private async Task SelectRun(MassAdjudicationRunSummary run)
+    {
+        _selectedRun = run;
+        _claimResultFilter = string.Empty;
+        await LoadClaimResults();
+    }
+
+    private async Task OnClaimResultFilterChanged(string value)
+    {
+        _claimResultFilter = value;
+        await LoadClaimResults();
+    }
+
+    private async Task LoadClaimResults(bool silent = false)
+    {
+        _claimResults.Clear();
+        if (_selectedRun is null)
+        {
+            return;
+        }
+
+        if (!silent)
+        {
+            _claimResultsLoading = true;
+        }
+
+        try
+        {
+            var results = await ClaimsService.GetMassAdjudicationClaimResultsAsync(
+                _selectedRun.Id,
+                ClaimOutcomeFilter,
+                250,
+                ClaimValidationStatusFilter,
+                ClaimPaymentStatusFilter);
+            _claimResults.AddRange(results);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            if (!silent)
+            {
+                Snackbar.Add("Unable to load claim-level results", Severity.Warning);
+            }
+        }
+        finally
+        {
+            if (!silent)
+            {
+                _claimResultsLoading = false;
+            }
+        }
+    }
+
+    private void ToggleAutoRefresh()
+    {
+        if (_autoRefresh)
+        {
+            StopAutoRefresh();
+            return;
+        }
+
+        _autoRefresh = true;
+        _refreshCts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        _ = WatchForRunsAsync(_refreshCts.Token);
+    }
+
+    private async Task WatchForRunsAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (_refreshTimer is not null && await _refreshTimer.WaitForNextTickAsync(ct))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadRuns(silent: true);
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void StopAutoRefresh()
+    {
+        _autoRefresh = false;
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        _refreshCts = null;
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopAutoRefresh();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string ClaimHref(string claimId, string? runId = null)
+    {
+        var href = $"/claims/{Uri.EscapeDataString(claimId)}";
+        return string.IsNullOrWhiteSpace(runId)
+            ? href
+            : $"{href}?fromRun={Uri.EscapeDataString(runId)}";
+    }
+
+    private static string ClaimsSearchHref(string runId)
+        => $"/claims?runId={Uri.EscapeDataString(runId)}";
+
+    private static string DisplayClaimId(MassAdjudicationClaimResult result)
+        => !string.IsNullOrWhiteSpace(result.GeneratedClaimId)
+            ? result.GeneratedClaimId
+            : ShortId(result.SubmittedClaimId ?? result.Id);
+
+    private static string ShortId(string id)
+        => string.IsNullOrWhiteSpace(id) ? "run" : id[..Math.Min(8, id.Length)];
+
+    private static double PercentProcessed(MassAdjudicationRunSummary run)
+        => run.TotalClaims <= 0 ? 0 : (double)run.Processed / run.TotalClaims * 100;
+
+    private static bool IsRunActive(MassAdjudicationRunSummary run)
+        => string.Equals(run.Status, "Running", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(run.Progress?.Phase, "Processing claims", StringComparison.OrdinalIgnoreCase);
+
+    private static string RunStatusLabel(MassAdjudicationRunSummary run)
+    {
+        if (!string.IsNullOrWhiteSpace(run.Progress?.Phase) && IsRunActive(run))
+        {
+            return run.Progress.Phase;
+        }
+
+        return string.IsNullOrWhiteSpace(run.Status) ? "Completed" : run.Status;
+    }
+
+    private static string RunProgressText(MassAdjudicationRunSummary run)
+    {
+        var completedClaims = run.Progress?.CompletedClaims ?? run.Processed;
+        var text = $"{RunStatusLabel(run)}: {completedClaims:N0} of {run.TotalClaims:N0} claims observed";
+        var pending = PendingWorkflowObservations(run);
+
+        if (pending <= 0)
+        {
+            return text;
+        }
+
+        var pendingDetails = PendingWorkflowObservationDetails(run);
+        return string.IsNullOrWhiteSpace(pendingDetails)
+            ? $"{text} · {pending:N0} workflow checks awaiting observation"
+            : $"{text} · {pending:N0} workflow checks awaiting observation ({pendingDetails})";
+    }
+
+    private static string WorkflowMismatchLabel(MassAdjudicationRunSummary run)
+        => IsRunActive(run) ? "Confirmed Mismatches" : "Workflow Mismatches";
+
+    private static int PendingExpectedPendObservations(MassAdjudicationRunSummary run)
+        => run.Progress?.PendingExpectedPendObservations ?? 0;
+
+    private static int PendingTerminalStatusObservations(MassAdjudicationRunSummary run)
+        => run.Progress?.PendingTerminalStatusObservations ?? 0;
+
+    private static int PendingWorkflowObservations(MassAdjudicationRunSummary run)
+    {
+        if (run.Progress is null)
+        {
+            return 0;
+        }
+
+        return run.Progress.PendingWorkflowObservations > 0
+            ? run.Progress.PendingWorkflowObservations
+            : PendingExpectedPendObservations(run) + PendingTerminalStatusObservations(run);
+    }
+
+    private static string PendingWorkflowObservationDetails(MassAdjudicationRunSummary run)
+    {
+        var pending = new List<string>();
+        var expectedPends = PendingExpectedPendObservations(run);
+        var terminalStatus = PendingTerminalStatusObservations(run);
+
+        if (expectedPends > 0)
+        {
+            pending.Add($"{expectedPends:N0} pend");
+        }
+
+        if (terminalStatus > 0)
+        {
+            pending.Add($"{terminalStatus:N0} terminal");
+        }
+
+        return string.Join(", ", pending);
+    }
+
+    private static string LastProgressText(MassAdjudicationRunSummary run)
+    {
+        var timestamp = run.Progress?.LastPublishedAtUtc;
+        if (timestamp is null || timestamp.Value == default)
+        {
+            return run.LastUpdatedAtUtc == default
+                ? "not published yet"
+                : run.LastUpdatedAtUtc.ToLocalTime().ToString("HH:mm:ss");
+        }
+
+        return timestamp.Value.LocalDateTime.ToString("HH:mm:ss");
+    }
+
+    private double DenialPercent(int count)
+        => _selectedRun is null || _selectedRun.BusinessDenials <= 0
+            ? 0
+            : (double)count / _selectedRun.BusinessDenials * 100;
+
+    private static double ScenarioPercent(int count, int total)
+        => total <= 0 ? 0 : (double)count / total * 100;
+
+    private static double PreparationDuration(MassAdjudicationRunSummary run)
+        => run.LifecycleTimings
+            .Where(t => string.Equals(t.Category, "Preparation", StringComparison.OrdinalIgnoreCase))
+            .Sum(t => t.DurationMilliseconds);
+
+    private static double LifecycleDuration(MassAdjudicationRunSummary run)
+        => run.LifecycleTimings.Sum(t => t.DurationMilliseconds);
+
+    private static bool HasFixturePreparation(MassAdjudicationRunSummary run)
+    {
+        var fixture = run.FixturePreparation;
+        return fixture is not null
+            && (fixture.GeneratedClaims > 0
+                || fixture.ProviderPoolDistinctBefore > 0
+                || fixture.ProviderPoolDistinctAfter > 0
+                || fixture.ProviderPoolReusedAssignments > 0
+                || fixture.ProviderPoolProtectedClaims > 0
+                || fixture.MembersCreated > 0
+                || fixture.MembersExisting > 0
+                || fixture.MemberStatusesAligned > 0
+                || fixture.CobCoverageCreated > 0
+                || fixture.CobCoverageExisting > 0
+                || fixture.ProviderNetworksCreated > 0
+                || fixture.ProviderNetworksExisting > 0
+                || fixture.ProvidersCreated > 0
+                || fixture.ProvidersExisting > 0);
+    }
+
+    private static string PreparationBottleneck(MassAdjudicationRunSummary run)
+    {
+        var bottleneck = run.LifecycleTimings
+            .Where(t => string.Equals(t.Category, "Preparation", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(t => t.DurationMilliseconds)
+            .FirstOrDefault();
+
+        return bottleneck is null
+            ? "preparation timing unavailable"
+            : $"{bottleneck.Label} · {FormatDuration(bottleneck.DurationMilliseconds)}";
+    }
+
+    private static string MemberFixtureLabel(MassAdjudicationRunSummary run, MassAdjudicationFixturePreparation fixture)
+    {
+        if (!run.Run.SeedMembers)
+        {
+            return "member seeding disabled";
+        }
+
+        var total = fixture.MembersCreated + fixture.MembersExisting;
+        return total <= 0
+            ? "no member fixtures needed"
+            : $"{fixture.MemberStatusesAligned:N0} statuses aligned";
+    }
+
+    private static string CobCoverageLabel(MassAdjudicationRunSummary run, MassAdjudicationFixturePreparation fixture)
+    {
+        if (!run.Run.SeedMembers)
+        {
+            return "member seeding disabled";
+        }
+
+        var total = fixture.CobCoverageCreated + fixture.CobCoverageExisting;
+        return total <= 0
+            ? "no expected-pend COB rows"
+            : "expected-pend coverage rows";
+    }
+
+    private static string ProviderNetworkLabel(MassAdjudicationRunSummary run, MassAdjudicationFixturePreparation fixture)
+    {
+        if (!run.Run.SeedProviders)
+        {
+            return "provider seeding disabled";
+        }
+
+        var total = fixture.ProviderNetworksCreated + fixture.ProviderNetworksExisting;
+        return total <= 0
+            ? "no network fixtures needed"
+            : "local MCC network fixtures";
+    }
+
+    private static string ProviderCacheLabel(MassAdjudicationRunSummary run, MassAdjudicationFixturePreparation fixture)
+    {
+        if (!run.Run.SeedProviders)
+        {
+            return "provider seeding disabled";
+        }
+
+        var total = fixture.ProvidersCreated + fixture.ProvidersExisting;
+        if (total <= 0)
+        {
+            return "no provider fixtures needed";
+        }
+
+        var hitRate = (double)fixture.ProvidersExisting / total;
+        return $"{hitRate:P0} already present";
+    }
+
+    private static string FormatDuration(double milliseconds)
+    {
+        var duration = TimeSpan.FromMilliseconds(Math.Max(0, milliseconds));
+        return duration.TotalSeconds < 1
+            ? $"{milliseconds:N0} ms"
+            : duration.TotalHours >= 1
+            ? duration.ToString("h\\:mm\\:ss")
+            : duration.ToString("m\\:ss");
+    }
+
+    private static string OnOff(bool value) => value ? "on" : "off";
+
+    private static string LineOfBusinessLabel(int lineOfBusiness) => lineOfBusiness switch
+    {
+        1 => "Commercial (1)",
+        2 => "Medicare (2)",
+        3 => "Medicaid (3)",
+        4 => "CHIP (4)",
+        5 => "Exchange (5)",
+        _ => lineOfBusiness <= 0 ? "Unspecified" : $"LOB {lineOfBusiness}"
+    };
+
+    private static string ScenarioCountStyle(int count, string highlightColor)
+        => $"font-family: monospace; color: {(count == 0 ? "rgba(255,255,255,0.55)" : highlightColor)};";
+
+    private string? ClaimOutcomeFilter
+        => string.IsNullOrWhiteSpace(_claimResultFilter)
+           || _claimResultFilter.StartsWith("validation:", StringComparison.Ordinal)
+           || _claimResultFilter.StartsWith("payment:", StringComparison.Ordinal)
+            ? null
+            : _claimResultFilter;
+
+    private string? ClaimValidationStatusFilter
+        => _claimResultFilter.StartsWith("validation:", StringComparison.Ordinal)
+            ? _claimResultFilter["validation:".Length..]
+            : null;
+
+    private string? ClaimPaymentStatusFilter
+        => _claimResultFilter.StartsWith("payment:", StringComparison.Ordinal)
+            ? _claimResultFilter["payment:".Length..]
+            : null;
+
+    private static string PaymentGateLabel(MassAdjudicationRunSummary run)
+        => run.PaymentComparisons <= 0
+            ? "-"
+            : $"{run.PaymentMatches:N0} / {run.PaymentComparisons:N0}";
+
+    private static decimal PaymentTolerance(MassAdjudicationRunSummary? run)
+        => run?.PaymentTolerance > 0 ? run.PaymentTolerance : LegacyPaymentTolerance;
+
+    private static string PaymentDeltaColor(decimal? paymentDelta, decimal tolerance)
+        => paymentDelta is null ? "#cbd5e1" : paymentDelta <= tolerance ? "#00ff88" : "#ff0055";
+
+    private static string PaymentDeltaBucketColor(MassAdjudicationPaymentDeltaBucket bucket)
+    {
+        if (bucket.Count == 0)
+        {
+            return "#64748b";
+        }
+
+        if (bucket.UpperBoundInclusive is null)
+        {
+            return "#ff0055";
+        }
+
+        return bucket.LowerBoundExclusive is null || bucket.LowerBoundExclusive == 0m
+            ? "#00ff88"
+            : "#facc15";
+    }
+
+    private static Color OutcomeColor(string outcome) => outcome switch
+    {
+        "Paid" => Color.Success,
+        "Pended" => Color.Warning,
+        "BusinessDenial" => Color.Warning,
+        "ObservationTimeout" => Color.Error,
+        "PlatformFailure" => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string OutcomeLabel(string outcome) => outcome switch
+    {
+        "BusinessDenial" => "Business Denial",
+        "ObservationTimeout" => "Observation Timeout",
+        "PlatformFailure" => "Platform Failure",
+        _ => outcome
+    };
+
+    private static Color ValidationColor(string status) => status switch
+    {
+        "Matched" => Color.Success,
+        "Mismatched" => Color.Error,
+        "Unsupported" => Color.Default,
+        "ObservationTimeout" => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string ValidationLabel(string status) => status switch
+    {
+        "Matched" => "Expected",
+        "Mismatched" => "Mismatch",
+        "Unsupported" => "Unsupported",
+        "ObservationTimeout" => "Observation Timeout",
+        _ => "Unscored"
+    };
+
+    private RenderFragment Metric(string label, string value, string color) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "style", $"border: 1px solid {color}55; background: {color}12; border-radius: 8px; padding: 12px;");
+        builder.OpenComponent<MudText>(2);
+        builder.AddAttribute(3, "Typo", Typo.caption);
+        builder.AddAttribute(4, "Style", "color: rgba(255,255,255,0.55);");
+        builder.AddAttribute(5, "ChildContent", (RenderFragment)(b => b.AddContent(6, label)));
+        builder.CloseComponent();
+        builder.OpenComponent<MudText>(7);
+        builder.AddAttribute(8, "Typo", Typo.h6);
+        builder.AddAttribute(9, "Style", $"color: {color}; font-weight: 700; font-family: monospace;");
+        builder.AddAttribute(10, "ChildContent", (RenderFragment)(b => b.AddContent(11, value)));
+        builder.CloseComponent();
+        builder.CloseElement();
+    };
+
+    private RenderFragment RunFact(string label, string value) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "style", "border: 1px solid rgba(0,255,255,0.18); background: rgba(0,255,255,0.05); border-radius: 8px; padding: 10px;");
+        builder.OpenComponent<MudText>(2);
+        builder.AddAttribute(3, "Typo", Typo.caption);
+        builder.AddAttribute(4, "Style", "color: rgba(255,255,255,0.55);");
+        builder.AddAttribute(5, "ChildContent", (RenderFragment)(b => b.AddContent(6, label)));
+        builder.CloseComponent();
+        builder.OpenComponent<MudText>(7);
+        builder.AddAttribute(8, "Typo", Typo.body2);
+        builder.AddAttribute(9, "Style", "color: #e2e8f0; font-family: monospace;");
+        builder.AddAttribute(10, "ChildContent", (RenderFragment)(b => b.AddContent(11, value)));
+        builder.CloseComponent();
+        builder.CloseElement();
+    };
+
+    private RenderFragment FixtureFact(string label, string value, string detail) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "style", "border: 1px solid rgba(250,204,21,0.25); background: rgba(250,204,21,0.06); border-radius: 8px; padding: 10px; min-height: 76px;");
+        builder.OpenComponent<MudText>(2);
+        builder.AddAttribute(3, "Typo", Typo.caption);
+        builder.AddAttribute(4, "Style", "color: rgba(255,255,255,0.55);");
+        builder.AddAttribute(5, "ChildContent", (RenderFragment)(b => b.AddContent(6, label)));
+        builder.CloseComponent();
+        builder.OpenComponent<MudText>(7);
+        builder.AddAttribute(8, "Typo", Typo.body2);
+        builder.AddAttribute(9, "Style", "color: #facc15; font-family: monospace; font-weight: 700;");
+        builder.AddAttribute(10, "ChildContent", (RenderFragment)(b => b.AddContent(11, value)));
+        builder.CloseComponent();
+        builder.OpenComponent<MudText>(12);
+        builder.AddAttribute(13, "Typo", Typo.caption);
+        builder.AddAttribute(14, "Style", "color: rgba(255,255,255,0.62);");
+        builder.AddAttribute(15, "ChildContent", (RenderFragment)(b => b.AddContent(16, detail)));
+        builder.CloseComponent();
+        builder.CloseElement();
+    };
+
+    private RenderFragment Timing(MassAdjudicationStageTiming? timing) => builder =>
+    {
+        var label = timing?.Label ?? "Stage";
+        var value = timing is null ? "—" : $"{timing.AverageMilliseconds:N0} / {timing.P95Milliseconds:N0} ms";
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "style", "border: 1px solid rgba(125,211,252,0.25); border-radius: 8px; padding: 10px;");
+        builder.OpenComponent<MudText>(2);
+        builder.AddAttribute(3, "Typo", Typo.caption);
+        builder.AddAttribute(4, "Style", "color: rgba(255,255,255,0.55);");
+        builder.AddAttribute(5, "ChildContent", (RenderFragment)(b => b.AddContent(6, $"{label} avg / p95")));
+        builder.CloseComponent();
+        builder.OpenComponent<MudText>(7);
+        builder.AddAttribute(8, "Typo", Typo.body2);
+        builder.AddAttribute(9, "Style", "color: #7dd3fc; font-family: monospace;");
+        builder.AddAttribute(10, "ChildContent", (RenderFragment)(b => b.AddContent(11, value)));
+        builder.CloseComponent();
+        builder.CloseElement();
+    };
+
+    private RenderFragment LifecycleTiming(MassAdjudicationLifecycleTiming timing) => builder =>
+    {
+        var categoryColor = string.Equals(timing.Category, "Preparation", StringComparison.OrdinalIgnoreCase)
+            ? "#facc15"
+            : string.Equals(timing.Category, "Processing", StringComparison.OrdinalIgnoreCase)
+                ? "#7dd3fc"
+                : "#cbd5e1";
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "style", $"border: 1px solid {categoryColor}55; background: {categoryColor}12; border-radius: 8px; padding: 10px;");
+        builder.OpenComponent<MudText>(2);
+        builder.AddAttribute(3, "Typo", Typo.caption);
+        builder.AddAttribute(4, "Style", "color: rgba(255,255,255,0.55);");
+        builder.AddAttribute(5, "ChildContent", (RenderFragment)(b => b.AddContent(6, timing.Category)));
+        builder.CloseComponent();
+        builder.OpenComponent<MudText>(7);
+        builder.AddAttribute(8, "Typo", Typo.body2);
+        builder.AddAttribute(9, "Style", $"color: {categoryColor}; font-family: monospace; font-weight: 700;");
+        builder.AddAttribute(10, "ChildContent", (RenderFragment)(b => b.AddContent(11, FormatDuration(timing.DurationMilliseconds))));
+        builder.CloseComponent();
+        builder.OpenComponent<MudText>(12);
+        builder.AddAttribute(13, "Typo", Typo.caption);
+        builder.AddAttribute(14, "Style", "color: rgba(255,255,255,0.65);");
+        builder.AddAttribute(15, "ChildContent", (RenderFragment)(b => b.AddContent(16, timing.Label)));
+        builder.CloseComponent();
+        builder.CloseElement();
+    };
+}
