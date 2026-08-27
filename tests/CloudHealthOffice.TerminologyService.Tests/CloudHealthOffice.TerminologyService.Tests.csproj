@@ -15,7 +15,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\services\CHO.TerminologyService\CHO.TerminologyService.csproj" />
+    <ProjectReference Include="..\..\src\services\terminology-service\CHO.TerminologyService.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

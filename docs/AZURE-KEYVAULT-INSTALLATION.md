@@ -309,8 +309,8 @@ Each service below needs Steps 3-6 completed. Track progress here.
 | 24 | sponsor-service | ☐ | ☐ | ☐ | ☐ | ☐ |
 | 25 | tenant-service | ☐ | ☐ | ☐ | ☐ | ☐ |
 | 26 | trading-partner-service | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 27 | CHO.TerminologyService | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 28 | CloudHealthOffice.PricingApi | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 27 | terminology-service | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 28 | pricing-api | ☐ | ☐ | ☐ | ☐ | ☐ |
 
 ### Blazor Portal (1)
 

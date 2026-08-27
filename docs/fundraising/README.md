@@ -4,16 +4,9 @@
 
 ---
 
-> **Source-of-truth notice:** All fundraising materials in this
-> directory must derive from and not contradict
-> [`docs/POSITIONING.md`](../POSITIONING.md). Overclaims identified
-> in the positioning audit
-> ([`docs/status/POSITIONING-AUDIT.md`](../status/POSITIONING-AUDIT.md))
-> must be resolved in each document before it is sent to investors.
-> Wave 1b of phase 2 closed the known investor-one-pager and
-> investor-meeting-script overclaims; before sending any document
-> from this directory to an investor, verify its claims against
-> POSITIONING.md one more time.
+> Fundraising copy in this folder should match
+> [`docs/POSITIONING.md`](../POSITIONING.md). Do not send a deck that
+> claims something the product docs do not.
 
 ---
 

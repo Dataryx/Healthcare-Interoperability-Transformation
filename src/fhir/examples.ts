@@ -1,15 +1,6 @@
 /**
- * FHIR R4 Integration - Usage Examples
- * 
- * This file contains practical examples for using the FHIR eligibility mapper
- * in real-world scenarios with Cloud Health Office.
- * 
- * Examples include:
- * - Basic X12 270 to FHIR transformation
- * - Integration with Kubernetes/Argo Workflows
- * - Posting resources with native fetch clients
- * - Handling different member scenarios
- * - Error handling and validation
+ * Worked examples for the X12 270 → FHIR Eligibility mapping.
+ * These are meant to be read, not imported as a library.
  */
 
 import { mapX12270ToFhirEligibility } from './fhirEligibilityMapper';

@@ -38,15 +38,8 @@
 # lives in one bash heredoc instead of two parallel matrix jobs that
 # would otherwise duplicate the reusable-workflow call site.
 #
-# Why image_name lives inside the JSON, not in a static include: block
-# ────────────────────────────────────────────────────────────────────
-# GitHub Actions matrix expansion has a footgun: a static `include:`
-# entry whose key (e.g. service: CHO.TerminologyService) doesn't appear
-# in the dynamic base array CAN be promoted to a NEW matrix combination
-# rather than just adding a field to an existing one. That would build
-# CHO.TerminologyService on every PR, even ones that don't touch it.
-# Encoding image_name into the JSON itself avoids that — the override
-# only exists in the matrix when the service is already present.
+# The matrix is just a JSON list of {service} objects. Folder names are
+# kebab-case, so image names fall out of ${image_prefix}-${service}.
 #
 # Cache-write asymmetry (push:false vs push:true)
 # ───────────────────────────────────────────────
@@ -79,7 +72,7 @@ on:
       # outer gate. Keep it broad to avoid missing legitimate triggers.
       - 'src/services/**'
       - 'src/engines/**'
-      - 'cloudhealthoffice-main.sln'
+      - 'CloudHealthOffice.sln'
       - '.github/workflows/_build-service-image.yml'
       - '.github/workflows/pr-validation.yml'
       - '.github/paths-filter.yml'
@@ -110,7 +103,7 @@ jobs:
   #
   #   [
   #     {"service": "appeals-service"},
-  #     {"service": "CHO.TerminologyService", "image_name": "cloudhealthoffice-terminology-service"}
+  #     {"service": "terminology-service"}
   #   ]
   #
   # Empty array (`[]`) when no per-service filter matched and no meta
@@ -169,12 +162,8 @@ jobs:
           # PR-validated but not yet deploy-targeted). ffs-service is
           # intentionally absent — see paths-filter.yml header.
           #
-          # Order doesn't matter for matrix correctness; alphabetical for
-          # readability. The two PascalCase services carry image_name
-          # overrides because the default ${image_prefix}-${service} naming
-          # would produce "cloudhealthoffice-CHO.TerminologyService" instead
-          # of the convention "cloudhealthoffice-terminology-service" that
-          # k8s manifests and ACR repositories expect.
+          # Folder names under src/services/. Image names default to
+          # cloudhealthoffice-<service>, so keep these kebab-case.
           FULL_LIST='[
             {"service":"accumulator-service"},
             {"service":"appeals-service"},
@@ -183,10 +172,8 @@ jobs:
             {"service":"authorization-service"},
             {"service":"benefit-plan-service"},
             {"service":"capitation-service"},
-            {"service":"CHO.TerminologyService","image_name":"cloudhealthoffice-terminology-service"},
             {"service":"claims-examiner-service"},
             {"service":"claims-service"},
-            {"service":"CloudHealthOffice.PricingApi","image_name":"cloudhealthoffice-pricing-api"},
             {"service":"consent-service"},
             {"service":"coverage-service"},
             {"service":"eligibility-service"},
@@ -200,6 +187,7 @@ jobs:
             {"service":"payment-service"},
             {"service":"personal-representative-service"},
             {"service":"premium-billing-service"},
+            {"service":"pricing-api"},
             {"service":"provider-contracts-service"},
             {"service":"provider-service"},
             {"service":"provider-verification-service"},
@@ -209,6 +197,7 @@ jobs:
             {"service":"smart-auth-service"},
             {"service":"sponsor-service"},
             {"service":"tenant-service"},
+            {"service":"terminology-service"},
             {"service":"trading-partner-service"}
           ]'
 
@@ -238,26 +227,13 @@ jobs:
             # when the downstream job runs fromJSON() against it.
             RESULT=$(jq -nc --argjson v "$FULL_LIST" '$v')
           else
-            # Selective: drop meta filter names from CHANGES_JSON, then
-            # transform each remaining entry into {service, image_name?}
-            # with the two PascalCase overrides applied. jq does this
-            # atomically so the output is always valid JSON, even when
-            # CHANGES_JSON is empty (`[]`) or contains only meta filter
-            # names that all get filtered out.
+            # Selective: ignore meta filter names, wrap the rest as {service}.
             RESULT=$(jq -nc --argjson changes "$CHANGES_JSON" '
               $changes
               | map(select(. as $name
                   | ["shared-libs","engines","build-config","workflows"]
                   | index($name) | not))
-              | map(
-                  if . == "CHO.TerminologyService" then
-                    {service: ., image_name: "cloudhealthoffice-terminology-service"}
-                  elif . == "CloudHealthOffice.PricingApi" then
-                    {service: ., image_name: "cloudhealthoffice-pricing-api"}
-                  else
-                    {service: .}
-                  end
-                )
+              | map({service: .})
             ')
           fi
 

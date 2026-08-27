@@ -68,7 +68,7 @@ the abstraction.
 
 ### 1. `RedisAccumulatorService` (BenefitEngine)
 
-[`Redisaccumulatorservice.cs`](../../src/engines/CloudHealthOffice.BenefitEngine/Services/Redisaccumulatorservice.cs)
+[`RedisAccumulatorService.cs`](../../src/engines/CloudHealthOffice.BenefitEngine/Services/RedisAccumulatorService.cs)
 uses Redis hashes with `HINCRBYFLOAT` to accumulate member deductible /
 out-of-pocket-max totals as claims finalize. The operation MUST be
 server-side atomic: two concurrent claim adjudications for the same

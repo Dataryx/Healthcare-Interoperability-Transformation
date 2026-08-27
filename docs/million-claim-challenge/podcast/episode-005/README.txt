@@ -23,19 +23,13 @@ The episode should make clear that throughput alone is not the story. The real b
 ## Packet files
 
 - `article.txt` - article source adapted for the podcast.
-- `pr-summary.txt` - implementation and PR context.
 - `benchmark-results.txt` - exact benchmark numbers and interpretation.
-- `podcast-prompt.txt` - episode-specific prompt for Adobe Podcast / Acrobat Generate Podcast.
 - `screenshots/.gitkeep` - placeholder for optional uploaded screenshots.
 
 ## Production notes
 
 Upload this packet with the reusable files in the parent folder:
 
-- `../host-personas.md`
-- `../adobe-podcast-prompt.md`
-- `../intro-script.md`
-- `../outro-script.md`
 
 The AI should not simply read the article. The preferred output is a natural conversation between two senior engineers.
 

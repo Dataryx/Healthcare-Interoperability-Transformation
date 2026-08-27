@@ -849,24 +849,14 @@ Automatic scanning on every PR:
 - [FHIR-SECURITY-NOTES.md](./docs/FHIR-SECURITY-NOTES.md) - FHIR security advisory (240 lines)
 
 #### Deployment & Operations
-- [DEPLOYMENT.md](./DEPLOYMENT.md) - Step-by-step deployment (93,438 bytes)
-- [DEPLOYMENT-GATES-GUIDE.md](./DEPLOYMENT-GATES-GUIDE.md) - UAT/PROD approval workflows (25+ pages)
-- [DEPLOYMENT-SECRETS-SETUP.md](./DEPLOYMENT-SECRETS-SETUP.md) - Secret management (1,014 lines)
-- [GITHUB-ACTIONS-SETUP.md](./GITHUB-ACTIONS-SETUP.md) - CI/CD configuration
+- [DEPLOYMENT.md](../deployment/DEPLOYMENT.md) - Step-by-step deployment
+- [DEPLOYMENT-GATES-GUIDE.md](../deployment/DEPLOYMENT-GATES-GUIDE.md) - UAT/PROD approval workflows
+- [GITHUB-ACTIONS-SETUP.md](../features/GITHUB-ACTIONS-SETUP.md) - CI/CD configuration
 
 #### Reference
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Technical deep-dive (40,330 bytes)
-- [CHANGELOG.md](./CHANGELOG.md) - Version history
-- [TROUBLESHOOTING-FAQ.md](./TROUBLESHOOTING-FAQ.md) - 60+ solutions
-- [CONTRIBUTING.md](./CONTRIBUTING.md) - Development guidelines
-
-#### Implementation Summaries
-- [IMPLEMENTATION-SUMMARY.md](./IMPLEMENTATION-SUMMARY.md) - Config-to-workflow generator
-- [FHIR-IMPLEMENTATION-SUMMARY.md](./FHIR-IMPLEMENTATION-SUMMARY.md) - FHIR R4 integration
-- [SECURITY-IMPLEMENTATION-SUMMARY.md](./SECURITY-IMPLEMENTATION-SUMMARY.md) - Security hardening
-- [GATED-RELEASE-IMPLEMENTATION-SUMMARY.md](./GATED-RELEASE-IMPLEMENTATION-SUMMARY.md) - Release strategy
-- [ONBOARDING-ENHANCEMENTS.md](./ONBOARDING-ENHANCEMENTS.md) - Onboarding improvements
-- [BRANDING-IMPLEMENTATION-SUMMARY.md](./BRANDING-IMPLEMENTATION-SUMMARY.md) - Sentinel branding
+- [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) - Technical deep-dive
+- [CHANGELOG.md](../../CHANGELOG.md) - Version history
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) - Development guidelines
 
 **Total Documentation**: 20,000+ lines across 40+ files
 

@@ -36,8 +36,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 13 article source: the remaining instrumentation gaps, the two isolated phase-internal mismatches, the Stopwatch-vs-wall-clock mechanism, the pmset correlation, and the caffeinate fix with its verification.
 - `benchmark-results.txt` - the three-run before/after table, checkpoint-level arithmetic for both mismatches, the pmset correlation table, and the retroactive case for Part 10/12.
-- `pr-summary.txt` - implementation work covered by this episode (PR #984), plus the incidental platform-failure note.
-- `podcast-prompt.txt` - episode-specific generation prompt.
 - `raw-validator-output-checkpoint-runs.txt` - full checkpoint, lifecycle, and post-processing output from all three 150K validator runs.
 - `pmset-sleep-log-excerpt.txt` - raw macOS sleep-log output for the relevant windows, with the correlation to each run's divergence spelled out.
 - `screenshots/.gitkeep` - placeholder for console evidence screenshots.

@@ -34,10 +34,8 @@ The episode should make clear that:
 ## Packet files
 
 - `article.txt` - synced source snapshot of the published Medium article.
-- `pr-summary.txt` - implementation and PR context for PRs #853-#856 and #858.
 - `benchmark-results.txt` - exact 5K, 10K, and 50K breadth validation results.
 - `raw-validator-output-50k.txt` - raw final 50K validator console output.
-- `podcast-prompt.txt` - episode-specific prompt for Adobe Podcast / Acrobat Generate Podcast.
 - `screenshots/episode-006-hero.png` - generated article hero image.
 - `screenshots/.gitkeep` - placeholder for optional uploaded screenshots.
 
@@ -45,10 +43,6 @@ The episode should make clear that:
 
 Upload this packet with the reusable files in the parent folder:
 
-- `../host-personas.md`
-- `../adobe-podcast-prompt.md`
-- `../intro-script.md`
-- `../outro-script.md`
 
 The AI should not simply read the article. The preferred output is a natural conversation between two senior engineers.
 

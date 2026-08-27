@@ -1639,16 +1639,6 @@ workflow.argoproj.io/claims-adjudication-workflow configured (dry run)
 All Argo workflow manifests validated
 ```
 
-### 5. Run Repository Structure Check
-
-```bash
-# Normalize repository structure
-pwsh -c "./fix_repo_structure.ps1 -RepoRoot ."
-
-# Verify output
-echo "✅ Repository structure validated"
-```
-
 ## Argo Workflow Deployment
 
 This section details the process for deploying Argo Workflow manifests to AKS after infrastructure is in place. Argo Workflows replaced Azure Logic Apps for EDI orchestration. See [docs/adr/004-remove-logic-apps.md](../adr/004-remove-logic-apps.md) for the decision record.

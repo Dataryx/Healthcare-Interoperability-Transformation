@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\services\CloudHealthOffice.PricingApi\CloudHealthOffice.PricingApi.csproj" />
+    <ProjectReference Include="..\..\src\services\pricing-api\CloudHealthOffice.PricingApi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

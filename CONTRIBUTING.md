@@ -1,12 +1,11 @@
-# Contributing to CloudHealthOffice
+# Contributing
 
-CloudHealthOffice is a source-available healthcare payer platform licensed under
-the Business Source License 1.1. Contributions are welcome, but the project is
-not permissively licensed software. By contributing, you agree that your
-contribution is provided under the same BSL 1.1 terms as the repository.
+Thanks for looking. This repo is BSL 1.1, so contributions land under the same
+license as the rest of the tree. Read that as: we want the help, we are not
+MIT.
 
-The highest-value contributions improve correctness, reproducibility,
-operability, documentation, and developer experience.
+The PRs that actually move the needle are correctness, tests, docs that match
+reality, and anything that makes a local run less painful.
 
 ## Before You Start
 

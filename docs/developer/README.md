@@ -34,7 +34,7 @@ change. The portal is commonly used for claims and mass-adjudication workflows.
 Use targeted builds where possible:
 
 ```bash
-dotnet build cloudhealthoffice-main.sln
+dotnet build CloudHealthOffice.sln
 dotnet build src/services/claims-service/claims-service.csproj
 dotnet build src/portal/CloudHealthOffice.Portal/CloudHealthOffice.Portal.csproj
 ```
@@ -64,7 +64,7 @@ shared contracts or behavior.
   `docs/million-claim-challenge`.
 - FHIR behavior: start with `src/services/fhir-service`, `src/fhir`, and
   architecture docs.
-- Terminology behavior: start with `src/services/CHO.TerminologyService`.
+- Terminology behavior: start with `src/services/terminology-service`.
 
 ## Additional Guides
 

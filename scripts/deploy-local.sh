@@ -122,8 +122,8 @@ declare -A SERVICES=(
   [idcard-service]="src/services/idcard-service/Dockerfile"
   [member-document-service]="src/services/member-document-service/Dockerfile"
   [personal-representative-service]="src/services/personal-representative-service/Dockerfile"
-  [terminology-service]="src/services/CHO.TerminologyService/Dockerfile"
-  [pricing-api]="src/services/CloudHealthOffice.PricingApi/Dockerfile"
+  [terminology-service]="src/services/terminology-service/Dockerfile"
+  [pricing-api]="src/services/pricing-api/Dockerfile"
 )
 
 # ── Build images ──────────────────────────────────────────────────────────────
@@ -478,7 +478,7 @@ for svc_dir in src/services/*/k8s/; do
 done
 
 # Pricing API (different path)
-deploy_service "src/services/CloudHealthOffice.PricingApi/k8s/pricing-api-deployment.yaml" "pricing-api"
+deploy_service "src/services/pricing-api/k8s/pricing-api-deployment.yaml" "pricing-api"
 
 # Services whose manifests live outside src/services/<name>/k8s.
 deploy_service "infrastructure/k8s/services/attachment-service.yaml" "attachment-service"

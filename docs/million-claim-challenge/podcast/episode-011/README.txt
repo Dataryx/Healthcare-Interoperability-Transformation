@@ -34,8 +34,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 11 article source: the re-investigation, the two real bugs found, the fix, and the live verification.
 - `benchmark-results.txt` - fix history and the 500-claim smoke-test evidence, both the synchronous benchmark side (unchanged bar) and the real orchestrated pipeline (new evidence this episode adds).
-- `pr-summary.txt` - implementation work covered by this episode (PR #974) and the code-review-caught third bug.
-- `podcast-prompt.txt` - episode-specific generation prompt.
 - `raw-validator-output-500-smoke.txt` - raw validator console output from the smoke-test run.
 - `claims-service-provider-integrity-log-excerpt.txt` - claims-service pod log excerpt showing `ProviderIntegrityStage`'s actual outcomes, independent of the validator's own scoring.
 - `sample-denied-claim.json` - persisted claim record for one of the ten excluded-provider denials, confirming the async pipeline's result matches the synchronous benchmark's.

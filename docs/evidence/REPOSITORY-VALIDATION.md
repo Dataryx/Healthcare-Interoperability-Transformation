@@ -121,8 +121,8 @@ printf '%s\n' "$VALIDATION_DIR" > /tmp/cho-validation-dir
 ### .NET Restore, Build, And Tests
 
 ```bash
-dotnet restore cloudhealthoffice-main.sln
-dotnet build cloudhealthoffice-main.sln --no-restore
+dotnet restore CloudHealthOffice.sln
+dotnet build CloudHealthOffice.sln --no-restore
 find src tests -name '*.Tests.csproj' \
   ! -name '*E2ETests.csproj' \
   ! -name '*LoadTests.csproj' | sort > "$VALIDATION_DIR/dotnet-test-projects.txt"
@@ -163,7 +163,7 @@ node src/site/js/validate-accessibility.js
 npm audit --audit-level=moderate
 npm audit --omit=dev --audit-level=moderate
 npx audit-ci --config .audit-ci.json
-dotnet list "$PWD/cloudhealthoffice-main.sln" package --vulnerable --include-transitive
+dotnet list "$PWD/CloudHealthOffice.sln" package --vulnerable --include-transitive
 ```
 
 Scanner availability was checked with:

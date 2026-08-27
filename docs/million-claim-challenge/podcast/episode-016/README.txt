@@ -23,9 +23,7 @@ Primary sources:
 - PR #1042 — Service Bus-only MCC validation and async benefit-plan identifier fix
 - PR #1044 — validated raw importer concurrency 32 and batched authorization seeding
 - `benchmark-results.txt` — exact Episode 16 measurements and limitations
-- `pr-summary.txt` — implementation history
 - `article.txt` — draft field note
-- `podcast-prompt.txt` — two-host production prompt
 - `visual-prompts.txt` — generation notes for the three article illustrations
 
 Production notes:

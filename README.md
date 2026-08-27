@@ -8,65 +8,45 @@
 [![FHIR R4](https://img.shields.io/badge/FHIR-R4-0F766E.svg)](docs/features/FHIR-INTEGRATION.md)
 [![CMS-0057-F](https://img.shields.io/badge/CMS--0057--F-readiness-0EA5E9.svg)](docs/compliance/CMS-0057-F-READINESS-MATRIX.md)
 
-CloudHealthOffice is a source-available, Kubernetes-first healthcare payer
-administration platform. It is built for teams modernizing claims, benefits,
-eligibility, prior authorization, FHIR interoperability, and X12 operations
-without treating a legacy Core Administration Processing System as the only
-place business logic can live.
+Source-available payer admin platform. Claims, benefits, eligibility, prior
+auth, FHIR, and X12 — meant to run on Kubernetes next to (or instead of) a
+legacy CAPS stack.
 
-The project is licensed under BSL 1.1. Non-production use is permitted for
-evaluation, development, testing, and staging. See [LICENSE](LICENSE) for the
-exact terms.
+Licensed under BSL 1.1. You can use it for eval, development, test, and
+staging. Production use has extra terms; see [LICENSE](LICENSE).
 
-## Executive Summary
+## What this is
 
-Health plans need modern APIs, event-driven operations, auditable adjudication,
-and CMS-0057-F interoperability. Legacy CAPS platforms such as Facets, QNXT, and
-HealthEdge remain operationally important, but they were not designed around
-Kubernetes, FHIR R4, X12 event streams, or continuous benchmark evidence.
+Most health plans still run Facets, QNXT, or HealthEdge as the place all
+business logic lives. Those systems work. They were not built around FHIR R4,
+CMS-0057-F APIs, or a claims pipeline you can actually inspect.
 
-CloudHealthOffice is designed as a cloud-native payer platform that can be
-deployed alongside existing systems, used to validate specific workloads, and
-progressively expanded. Current evidence is strongest around local Kubernetes
-claims adjudication, workflow scoring, pended-claim observability, and operator
-console inspection through the Million Claim Challenge.
+CloudHealthOffice is the other shape: APIs and engines first, portal on top,
+adjudication you can score instead of trusting a black box. You can stand it
+up locally, run a workload against it, and grow from there.
 
-## Who It Is For
+It is a real repo, not a packaged appliance. Some services are further along
+than others. The Million Claim Challenge numbers are local Kubernetes runs,
+not a cloud capacity promise.
 
-- Health plan engineering teams evaluating CAPS modernization paths.
-- Payer platform architects working with claims, benefits, eligibility, and
-  prior authorization systems.
-- Healthcare interoperability teams implementing CMS-0057-F, FHIR R4, and X12.
-- Contributors who want to work on production-oriented healthcare platform
-  infrastructure.
+## Who usually cares
 
-## What Makes It Different
+- Plan engineering teams looking at a CAPS modernization path
+- Architects who own claims, benefits, eligibility, or prior auth
+- Interop folks implementing CMS-0057-F, FHIR R4, and X12
+- Contributors who want to work on the platform itself
 
-- **Kubernetes-first:** services, jobs, workflows, and local benchmark runs are
-  designed around containerized operation.
-- **Evidence-first:** the Million Claim Challenge publishes reproducible command
-  lines, run summaries, validation outcomes, and raw artifacts instead of only
-  marketing claims.
-- **API-first:** payer operations are exposed through service APIs, a Blazor
-  portal, and FHIR/X12 integration surfaces.
-- **Event-oriented:** claims and operational workflows are structured for
-  asynchronous processing, durable audit trails, and future streaming analytics.
-- **Truthful scoring:** paid, denied, pended, mismatched, unsupported, platform
-  failures, false pends, and payment deltas are separated.
+## What is in here
 
-## Key Features
-
-| Area | Current focus |
+| Area | What you will find |
 | --- | --- |
-| Claims adjudication | Professional, institutional, and dental synthetic claims; workflow scoring; claim detail views; mass adjudication console |
-| Benefit administration | Declarative benefit models, cost sharing, accumulators, service-category mapping, and plan versioning |
-| Pricing and edits | Fee schedules, NCCI/MUE checks, claims scrubbing, COB, provider network checks, and prior-auth rules |
-| Interoperability | FHIR R4 projections, X12 parsing/processing, terminology lookup, and CMS-0057-F readiness docs |
-| Operations portal | Claims search, claim detail, mass adjudication runs, EDI transaction history (834/837), dashboards, work queues, and administrative surfaces |
-| Deployment | Docker Compose, Kubernetes manifests, GitHub Actions, and deployment documentation |
-| Benchmarks | 5K, 10K, 50K, 100K, and full 1,000,000-claim Million Claim Challenge evidence packets |
-
-## Platform Architecture
+| Claims | Professional / institutional / dental synthetic claims, workflow scoring, mass adjudication console |
+| Benefits | Declarative plans, cost share, accumulators, service-category mapping, plan versions |
+| Pricing and edits | Fee schedules, NCCI/MUE, scrubbing, COB, network checks, prior-auth rules |
+| Interop | FHIR R4 projections, X12 parse/process, terminology, CMS-0057-F docs |
+| Portal | Claims search and detail, mass adj, EDI history (834/837), queues, admin |
+| Deploy | Docker Compose, Kubernetes manifests, GitHub Actions |
+| Benchmarks | 5K through 1,000,000-claim evidence packets |
 
 ```mermaid
 flowchart LR
@@ -75,80 +55,66 @@ flowchart LR
     Portal --> Benefits["benefit-plan-service"]
     Portal --> Fhir["fhir-service"]
 
-    X12["X12 / EDI Inputs\n837, 834, 270/271, 276/277, 278"] --> Claims
-    Claims --> Pipeline["Adjudication Pipeline"]
-    Pipeline --> BenefitEngine["Benefit Engine"]
-    Pipeline --> FeeEngine["Fee Schedule Engine"]
-    Pipeline --> Ncci["NCCI Engine"]
-    Pipeline --> Cob["COB Engine"]
-    Pipeline --> Scrub["Claims Scrub Engine"]
-    Pipeline --> Persistence["Claim Persistence"]
+    X12["X12 / EDI\n837, 834, 270/271, 276/277, 278"] --> Claims
+    Claims --> Pipeline["Adjudication pipeline"]
+    Pipeline --> BenefitEngine["Benefit engine"]
+    Pipeline --> FeeEngine["Fee schedule engine"]
+    Pipeline --> Ncci["NCCI engine"]
+    Pipeline --> Cob["COB engine"]
+    Pipeline --> Scrub["Scrub engine"]
+    Pipeline --> Persistence["Claim store"]
 
-    Claims --> Events["Event Bus / Kafka-ready Topics"]
+    Claims --> Events["Event bus"]
     Authz --> Events
     Benefits --> Events
-    Events --> Observability["Telemetry, Audit, Run Evidence"]
+    Events --> Observability["Telemetry and audit"]
 
     Fhir --> Cms["CMS-0057-F APIs"]
     Persistence --> Portal
 ```
 
-Start with [docs/architecture/README.md](docs/architecture/README.md) for the
-architecture map and component-level guides.
+Architecture notes live in [docs/architecture/README.md](docs/architecture/README.md).
 
-## Screenshots And Evidence
+## Screenshots
 
-The current public evidence comes from local Docker Desktop Kubernetes runs and
-the Mass Adjudication console.
+These are from local Docker Desktop Kubernetes runs, via the mass adjudication
+console.
 
 | View | Screenshot |
 | --- | --- |
 | 100K run dashboard | [episode-008-100k-dashboard.png](docs/million-claim-challenge/podcast/episode-008/screenshots/episode-008-100k-dashboard.png) |
 | Outcome breakdown | [episode-008-100k-outcome-breakdown.png](docs/million-claim-challenge/podcast/episode-008/screenshots/episode-008-100k-outcome-breakdown.png) |
-| Claim detail summary | [episode-008-claim-detail-summary.png](docs/million-claim-challenge/podcast/episode-008/screenshots/episode-008-claim-detail-summary.png) |
+| Claim detail | [episode-008-claim-detail-summary.png](docs/million-claim-challenge/podcast/episode-008/screenshots/episode-008-claim-detail-summary.png) |
 | Live telemetry | [episode-007-live-telemetry-running.png](docs/million-claim-challenge/podcast/episode-007/screenshots/episode-007-live-telemetry-running.png) |
-
-Screenshot placeholder structure for future documentation lives in
-[docs/assets/screenshots/README.md](docs/assets/screenshots/README.md).
 
 ## Million Claim Challenge
 
-The Million Claim Challenge is the project’s benchmark and proof ladder. It is
-not just a load test. It validates whether the platform reaches the right
-disposition, preserves pended-claim observability, separates unsupported gaps,
-and reports payment accuracy independently from workflow correctness.
+This is how we check whether adjudication is actually right, not just fast.
+Paid, denied, pended, mismatched, unsupported, and platform failures are
+counted separately. Payment amount is gated on its own.
 
-Current published local evidence includes:
+Published local runs include:
 
-- Full 1,000,000-claim corpus run (episode 15) with zero platform failures,
-  129,981/130,000 workflow checks matched, zero unsupported scenarios, and a
-  payment-amount gate of 20,000/20,000 exact within one cent.
-- 100,000-claim local Kubernetes run with zero platform failures, zero scoreable
-  workflow mismatches, zero unexpected pends across scoreable non-pend claims,
-  and 2,000 of 2,000 comparable payments within one cent.
-- Operator-console evidence for completed run summaries, claim-level drilldown,
-  unsupported filters, payment evidence, and lifecycle timing.
+- Full 1,000,000-claim corpus (episode 15): zero platform failures,
+  129,981/130,000 workflow checks matched, no unsupported scenarios,
+  20,000/20,000 payments exact within a cent.
+- 100,000-claim local Kubernetes run: zero platform failures, zero scoreable
+  workflow mismatches, and 2,000/2,000 comparable payments within a cent.
 
-Start here:
-
-- [Benchmark documentation](docs/benchmarks/README.md)
-- [Episode 008 100K result](docs/million-claim-challenge/podcast/episode-008/article.txt)
-- [100K benchmark results](docs/million-claim-challenge/podcast/episode-008/benchmark-results.txt)
+Start with [docs/benchmarks/README.md](docs/benchmarks/README.md) and the
+[episode 008 100K write-up](docs/million-claim-challenge/podcast/episode-008/article.txt).
 
 ## CMS-0057-F
 
-CloudHealthOffice includes documentation and implementation surfaces for the CMS
-Interoperability and Prior Authorization Final Rule. Treat the readiness matrix
-as the source of truth for current status and gaps.
+Docs and API surfaces for the interoperability / prior-auth rule. The
+readiness matrix is the honest status, including gaps.
 
-- [CMS-0057-F readiness matrix](docs/compliance/CMS-0057-F-READINESS-MATRIX.md)
-- [CMS-0057-F compliance guide](docs/features/CMS-0057-F-COMPLIANCE.md)
+- [Readiness matrix](docs/compliance/CMS-0057-F-READINESS-MATRIX.md)
+- [Compliance guide](docs/features/CMS-0057-F-COMPLIANCE.md)
 - [FHIR integration](docs/features/FHIR-INTEGRATION.md)
 - [Prior authorization API](docs/features/PRIOR-AUTHORIZATION-API.md)
 
-## Quick Start
-
-For the shortest path, use the current quickstart:
+## Quick start
 
 ```bash
 git clone https://github.com/aurelianware/cloudhealthoffice.git
@@ -158,76 +124,51 @@ docker compose --profile core up -d
 curl http://localhost:5001/health/live
 ```
 
-Then continue with:
+From there:
 
-- [Quickstart guide](docs/guides/QUICKSTART.md)
-- [Kubernetes deployment](docs/deployment/DEPLOYMENT.md)
-- [Developer guide](docs/developer/README.md)
-- [Testing guide](tests/README.md)
+- [Quickstart](docs/guides/QUICKSTART.md)
+- [Kubernetes](docs/deployment/DEPLOYMENT.md)
+- [Developer notes](docs/developer/README.md)
+- [Tests](tests/README.md)
 
-## Repository Layout
-
-```text
-src/
-  services/        Microservices: claims, benefits, auth, FHIR, terminology, payment, etc.
-  engines/         Benefit, fee schedule, NCCI, COB, scrub, risk, encounter, prior-auth engines
-  portal/          Blazor Server operations portal
-  site/            Marketing and documentation website
-  fhir/            FHIR resources, projections, and conformance work
-docs/
-  architecture/    Platform architecture and component guides
-  benchmarks/      Million Claim Challenge methodology and reproducibility
-  compliance/      CMS-0057-F and regulatory readiness
-  deployment/      Local, Docker, Kubernetes, and cloud deployment
-  domain/          Healthcare payer domain primers
-  developer/       Contributor and engineering onboarding
-tests/             Unit, integration, and service-level test projects
+```bash
+dotnet build CloudHealthOffice.sln
 ```
 
-## Documentation Index
+## Layout
 
-- [Documentation home](docs/README.md)
+```text
+src/services/     HTTP services (kebab-case folders: claims-service, fhir-service, …)
+src/engines/      Benefit, fee schedule, NCCI, COB, scrub, risk, encounter, prior-auth
+src/portal/       Blazor Server operations console
+src/site/         Public site
+src/fhir/         FHIR mapping and conformance helpers
+src/tools/        Benchmark corpus generator, MCC runner/validator, migration wizard
+docs/             Architecture, deploy, compliance, domain, benchmarks
+tests/            Unit / integration / service tests
+infrastructure/   Kubernetes, Azure, Argo
+```
+
+C# namespaces and assembly names stay PascalCase. Folders for runnable
+services match the Docker/K8s names.
+
+## Docs
+
+- [Docs home](docs/README.md)
 - [Architecture](docs/architecture/README.md)
-- [Healthcare domain](docs/domain/README.md)
+- [Domain primer](docs/domain/README.md)
 - [Benchmarks](docs/benchmarks/README.md)
-- [Developer guide](docs/developer/README.md)
-- [Deployment](docs/deployment/DEPLOYMENT.md)
+- [Deploy](docs/deployment/DEPLOYMENT.md)
 - [Roadmap](docs/roadmap/README.md)
-- [Architecture decisions](ARCHITECTURE_DECISIONS.md)
+- [ADRs](ARCHITECTURE_DECISIONS.md)
 
 ## Contributing
 
-CloudHealthOffice needs contributors who care about healthcare correctness,
-operability, reproducibility, and privacy. Good first contributions include
-documentation improvements, benchmark reproducibility notes, test coverage,
-developer-experience fixes, and clearly scoped service bugs.
+Fixes, tests, docs, and benchmark reproducibility are the most useful PRs.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) first.
 
-- [Contributing guide](CONTRIBUTING.md)
-- [Good first issues guide](GOOD_FIRST_ISSUES.md)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-- [Security policy](SECURITY.md)
-- [Support](SUPPORT.md)
+Do not put PHI, production credentials, or real member/claim data in issues,
+PRs, fixtures, logs, or screenshots.
 
-Never include PHI, production credentials, real patient data, real member data,
-or real claim data in issues, discussions, examples, logs, screenshots, tests, or
-pull requests.
-
-## Community
-
-- Ask questions in [GitHub Discussions](https://github.com/aurelianware/cloudhealthoffice/discussions).
-- Report bugs with the GitHub issue templates.
-- Report security vulnerabilities privately; see [SECURITY.md](SECURITY.md).
-- Propose roadmap or architecture changes through an issue or ADR.
-
-## Roadmap
-
-The public roadmap is maintained in [docs/roadmap/README.md](docs/roadmap/README.md)
-and separates implemented functionality, current work, next steps, future work,
-and stretch goals. Planned capabilities are intentionally labeled as planned.
-
-## Status Notes
-
-CloudHealthOffice is an active platform repository, not a packaged production
-appliance. Some services are more mature than others. Current benchmark evidence
-is local Kubernetes evidence, not a production cloud capacity claim. The docs
-favor reproducibility and explicit gaps over inflated completeness claims.
+Questions: [GitHub Discussions](https://github.com/aurelianware/cloudhealthoffice/discussions).
+Security reports go privately per [SECURITY.md](SECURITY.md).

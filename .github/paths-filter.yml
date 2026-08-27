@@ -33,9 +33,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Per-service filters (alphabetical) ──────────────────────────────────────
-# Filter NAMES match dorny output names verbatim and are case-sensitive;
-# the two PascalCase entries (CHO.TerminologyService, CloudHealthOffice.PricingApi)
-# sort against the rest by lowercase order purely for human readability.
+# Filter names must match the folder under src/services/.
 accumulator-service:           ['src/services/accumulator-service/**']
 appeals-service:               ['src/services/appeals-service/**']
 ar-service:                    ['src/services/ar-service/**']
@@ -43,10 +41,8 @@ attachment-service:            ['src/services/attachment-service/**']
 authorization-service:         ['src/services/authorization-service/**']
 benefit-plan-service:          ['src/services/benefit-plan-service/**']
 capitation-service:            ['src/services/capitation-service/**']
-CHO.TerminologyService:        ['src/services/CHO.TerminologyService/**']
 claims-examiner-service:       ['src/services/claims-examiner-service/**']
 claims-service:                ['src/services/claims-service/**']
-CloudHealthOffice.PricingApi:  ['src/services/CloudHealthOffice.PricingApi/**']
 consent-service:               ['src/services/consent-service/**']
 coverage-service:              ['src/services/coverage-service/**']
 eligibility-service:           ['src/services/eligibility-service/**']
@@ -60,6 +56,7 @@ member-service:                ['src/services/member-service/**']
 payment-service:               ['src/services/payment-service/**']
 personal-representative-service: ['src/services/personal-representative-service/**']
 premium-billing-service:       ['src/services/premium-billing-service/**']
+pricing-api:                   ['src/services/pricing-api/**']
 provider-contracts-service:    ['src/services/provider-contracts-service/**']
 provider-service:              ['src/services/provider-service/**']
 provider-verification-service: ['src/services/provider-verification-service/**']
@@ -69,6 +66,7 @@ risk-adjustment-service:       ['src/services/risk-adjustment-service/**']
 smart-auth-service:            ['src/services/smart-auth-service/**']
 sponsor-service:               ['src/services/sponsor-service/**']
 tenant-service:                ['src/services/tenant-service/**']
+terminology-service:           ['src/services/terminology-service/**']
 trading-partner-service:       ['src/services/trading-partner-service/**']
 
 # ── Meta filters (any match → validate ALL services) ────────────────────────
@@ -92,7 +90,7 @@ engines:
 # at root yet); add Directory.Build.props / Directory.Build.targets here if
 # they are introduced later.
 build-config:
-  - 'cloudhealthoffice-main.sln'
+  - 'CloudHealthOffice.sln'
 
 # workflows: self-edits to the CI workflow files that drive PR validation.
 # Including this file in its own filter means any path-filter config change

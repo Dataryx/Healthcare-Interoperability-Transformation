@@ -64,7 +64,7 @@ on:
   workflow_call:
     inputs:
       service:
-        description: "Service directory name under src/services/ (e.g. appeals-service, CHO.TerminologyService)."
+        description: "Service directory name under src/services/ (e.g. claims-service)."
         type: string
         required: true
       build_context:
@@ -142,7 +142,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: "Service directory name under src/services/ (e.g. appeals-service, CHO.TerminologyService)."
+        description: "Service directory name under src/services/ (e.g. claims-service)."
         type: string
         required: true
       build_context:
@@ -236,11 +236,8 @@ jobs:
           REGISTRY="${{ inputs.registry || vars.ACR_LOGIN_SERVER || 'clouhealthoffice.azurecr.io' }}"
           REGISTRY_NAME="${{ inputs.registry_name || vars.ACR_NAME || 'clouhealthoffice' }}"
 
-          # image_name: when caller provides one, it's used VERBATIM (no
-          # double-prefixing). This matches the convention deploy-azure-aks.yml
-          # already uses for PascalCase services like CHO.TerminologyService
-          # and CloudHealthOffice.PricingApi (see deploy-azure-aks.yml lines
-          # 236-241). When NOT overridden, default to ${image_prefix}-${service}.
+          # image_name is used as-is if the caller set it. Otherwise
+          # ${image_prefix}-${service} (cloudhealthoffice-claims-service, etc).
           IMAGE_NAME="${{ inputs.image_name || format('{0}-{1}', inputs.image_prefix, inputs.service) }}"
 
           # build_context: default to ./src/services/<service>. In practice

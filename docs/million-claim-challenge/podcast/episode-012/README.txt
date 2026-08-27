@@ -35,8 +35,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 12 article source: the two fixture bugs, the Submit-chain profiling, the MongoDB discovery, and the 500K confirmation with its own open question.
 - `benchmark-results.txt` - fix history for all four PRs (#976, #977, #978, #982), before/after Submit-chain profiling evidence, and the full 500K confirmation run results.
-- `pr-summary.txt` - implementation work covered by this episode.
-- `podcast-prompt.txt` - episode-specific generation prompt.
 - `raw-validator-output-500k.txt` - raw validator console output from the 500K confirmation run.
 - `mongodb-cgroup-before-after.txt` - MongoDB's cgroup cpu.stat and resource spec, before and after the CPU limit fix, plus the follow-up audit of other shared dependencies.
 - `submit-profile-before-after.txt` - aggregated per-hop Submit-chain timing statistics, before and after the MongoDB fix.

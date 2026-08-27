@@ -1,8 +1,7 @@
-# CloudHealthOffice Documentation
+# Docs
 
-This is the documentation home for CloudHealthOffice. It is organized for a
-first-time engineer who needs to understand the platform, run it locally, inspect
-the architecture, and find an area to contribute.
+Start with the [root README](../README.md) if you are new. Everything else is
+grouped by job: run it, understand it, deploy it, or contribute.
 
 ## Start Here
 

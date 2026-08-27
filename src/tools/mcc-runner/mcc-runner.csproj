@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\CloudHealthOffice.BenchmarkClaimGenerator\CloudHealthOffice.BenchmarkClaimGenerator.csproj" />
+    <ProjectReference Include="..\benchmark-claim-generator\CloudHealthOffice.BenchmarkClaimGenerator.csproj" />
   </ItemGroup>
 
 </Project>

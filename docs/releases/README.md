@@ -32,7 +32,6 @@ Complete CMS-0057-F compliance with production-ready FHIR R4 APIs.
 | Document | Description |
 |----------|-------------|
 | [Changelog v2.0.0](../../CHANGELOG.md#200---2025-11-28) | Detailed v2.0.0 changes |
-| [What's New](../../WHATS-NEW.md#-v200-features-november-2025) | v2.0.0 feature highlights |
 
 **Key Highlights:**
 - 🔄 **FHIR R4 Integration**: Complete X12 → FHIR transformation
@@ -81,8 +80,7 @@ Release announcements and executive communications.
 | Resource | Link |
 |----------|------|
 | **Full Changelog** | [CHANGELOG.md](../../CHANGELOG.md) |
-| **What's New** | [WHATS-NEW.md](../../WHATS-NEW.md) |
-| **Features Matrix** | [FEATURES.md](../../FEATURES.md) |
+| **Features Matrix** | [../guides/FEATURES.md](../guides/FEATURES.md) |
 | **Quick Start** | [QUICKSTART.md](../../QUICKSTART.md) |
 | **GitHub Issues** | [Issues](https://github.com/aurelianware/cloudhealthoffice/issues) |
 | **Discussions** | [Discussions](https://github.com/aurelianware/cloudhealthoffice/discussions) |

@@ -38,8 +38,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 9 article source, including the four-round confirmation-run section and the full #954/#956/#958 fix history.
 - `benchmark-results.txt` - run identity, command, scoring-surface change under test, and recorded results for the final, clean post-#950/#954/#956/#958 100K p12 confirmation run.
-- `pr-summary.txt` - implementation work covered by this episode (#936, #941, #946, #947, #949, #950, #954, #956, #958).
-- `podcast-prompt.txt` - episode-specific generation prompt.
 - `raw-validator-output-post950-100k-p12.txt` - raw validator console output from the final, clean confirmation run.
 - `run-summary-post950-100k-p12.json` - completed dashboard summary returned by claims-service.
 - `screenshots/.gitkeep` - placeholder for console evidence screenshots (pending-check progress view, expanded scenario scoring, behavioral-health claim drilldown).

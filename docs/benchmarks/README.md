@@ -28,7 +28,6 @@ Start with:
 
 - [Episode 008 article](../million-claim-challenge/podcast/episode-008/article.txt)
 - [Episode 008 benchmark results](../million-claim-challenge/podcast/episode-008/benchmark-results.txt)
-- [Episode 008 PR summary](../million-claim-challenge/podcast/episode-008/pr-summary.txt)
 - [Pended-claim validation](../million-claim-challenge/pend-validation.md)
 
 ## Reproducibility
@@ -85,8 +84,6 @@ with:
 
 - `article.txt`
 - `benchmark-results.txt`
-- `podcast-prompt.txt`
-- `pr-summary.txt`, when relevant
 - `screenshots/`
 - raw output files, when safe and useful
 

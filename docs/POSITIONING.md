@@ -104,9 +104,9 @@ For customers who are not yet ready for Platform Engagement, Managed Data Servic
 
 ### What's shipped today
 
-- **TMPPM ingestion pipeline** — PDF extraction with hybrid regex + LLM confidence scoring, tenant-scoped persistence in Cosmos DB. Tooling and test corpus in place at `tools/CloudHealthOffice.TmppmIngestionService/`.
+- **TMPPM ingestion pipeline** — PDF extraction with hybrid regex + LLM confidence scoring, tenant-scoped persistence in Cosmos DB. Tooling and test corpus in place at `tools/tmppm-ingestion-service/`.
 - **Provider Verification Engine** — multi-source integrity scoring shipped as `src/engines/CloudHealthOffice.ProviderVerificationEngine/`.
-- **Terminology service infrastructure** — FHIR ConceptMap and `$translate` operation scaffolded via `src/services/CHO.TerminologyService/`.
+- **Terminology service infrastructure** — FHIR ConceptMap and `$translate` operation scaffolded via `src/services/terminology-service/`.
 - **Fee Schedule Engine** — rate resolution across RBRVS / OPPS / MS-DRG / custom fee schedules shipped as `src/engines/CloudHealthOffice.FeeScheduleEngine/`.
 
 ### Productization status (honest disclosure)
@@ -236,7 +236,7 @@ EDI coverage via Argo workflows: 270/271/275/276/277/278/834/837.
 
 #### Evidence shipped today
 
-- 36 services under `src/services/` and 9 adjudication/rules engines under `src/engines/` (PriorAuthRuleEngine, BenefitEngine, RiskAdjustmentEngine, ProviderVerificationEngine, FeeScheduleEngine, ClaimsScrubEngine, CobEngine, EncounterEngine, NcciEngine). The `src/engines/` directory also contains supporting projects (`OperatingMode`, `DocumentStore`, `ProviderEnrollmentService`, `cho-enrollment-wiring`) that are not adjudication engines and are not counted in the "9 engines" figure.
+- 36 services under `src/services/` and 9 adjudication/rules engines under `src/engines/` (PriorAuthRuleEngine, BenefitEngine, RiskAdjustmentEngine, ProviderVerificationEngine, FeeScheduleEngine, ClaimsScrubEngine, CobEngine, EncounterEngine, NcciEngine). The `src/engines/` directory also contains supporting projects (`OperatingMode`, `DocumentStore`, `ProviderEnrollmentService`, `enrollment-wiring`) that are not adjudication engines and are not counted in the "9 engines" figure.
 - Argo-orchestrated adjudication workflow (`infrastructure/argo-workflows/claims-adjudication-workflow.yaml`) wiring the pipeline end-to-end.
 - Per-tenant multi-tenancy enforced across services, databases (Cosmos DB partitions), secrets (Key Vault namespacing), and Kafka topics.
 - Portal under `src/portal/` for operational workflows across tenants, services, and operating modes.
@@ -291,7 +291,7 @@ The published result should not be overstated. The 122 Episode 16 timeouts measu
 
 ### What we offer
 
-- `src/CloudHealthOffice.BenchmarkClaimGenerator/` — full .NET 8 library for parallel corpus generation.
+- `src/tools/benchmark-claim-generator/` — full .NET 8 library for parallel corpus generation.
 - `/docs/million-claim-challenge` — public landing page at cloudhealthoffice.com describing the benchmark.
 - Portal Mass Adjudication console — operator-facing run evidence with claim-level drilldown, validation-status filtering, human-readable MCC claim IDs, and evidence-first sampling for failures, observation failures, mismatches, unsupported rows, and slow claims.
 - `docs/million-claim-challenge/podcast/` — repeatable podcast packet workflow for turning Medium articles, pull requests, benchmark results, screenshots, and project context into Adobe Podcast / Acrobat Generate Podcast source material.

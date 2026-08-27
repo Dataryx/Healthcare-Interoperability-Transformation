@@ -37,8 +37,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 15 article source: why now, the first attempt's mixed result, the platform-failure shape as a clue, the Redis investigation, the fix and its honest limits, and what one million claims actually proves about the series' own methodology.
 - `benchmark-results.txt` - full numeric evidence for both runs side by side, the Redis diagnostic data (used_memory, evicted_keys, slowlog), the fix details, and the post-fix verification.
-- `pr-summary.txt` - implementation work covered by this episode (PR #992).
-- `podcast-prompt.txt` - episode-specific generation prompt.
 - `raw-evidence-1m-runs.txt` - raw kubectl/redis-cli output from both runs: progress-line transitions, the platform-failure stack traces, the live deployment config revealing the drift, the fix commands, and the post-fix Redis state.
 - `screenshots/.gitkeep` - placeholder for console evidence screenshots.
 

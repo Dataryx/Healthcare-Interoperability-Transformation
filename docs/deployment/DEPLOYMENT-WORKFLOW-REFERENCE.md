@@ -186,9 +186,6 @@ az bicep build --file infra/main.bicep --outfile /tmp/arm.json
 
 # Validate Argo workflow YAML manifests
 kubectl apply --dry-run=client -f infrastructure/argo-workflows/
-
-# Run repository structure check
-pwsh -c "./fix_repo_structure.ps1 -RepoRoot ."
 ```
 
 ### Deploy to DEV
@@ -351,10 +348,7 @@ az deployment group show \
 - `infra/main.bicep` - Main infrastructure template
 - `infrastructure/argo-workflows/*.yaml` - Argo Workflow DAG definitions
 
-### Scripts
-- `fix_repo_structure.ps1` - Repository structure normalization
-
-## 🆘 Getting Help
+## Getting Help
 
 ### Documentation
 1. Check relevant documentation file first

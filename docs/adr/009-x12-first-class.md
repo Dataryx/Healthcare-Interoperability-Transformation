@@ -33,6 +33,6 @@ Tradeoffs:
 ## References
 
 - [837 claims pipeline](../features/837-CLAIMS-PIPELINE.md)
-- [834 implementation summary](../features/834-IMPLEMENTATION-SUMMARY.md)
-- [276/277 implementation](../features/276-277-IMPLEMENTATION-COMPLETE.md)
+- [834 enrollment](../features/834-ENROLLMENT-DEPLOYMENT.md)
+- [277 value-adds](../features/VALUEADDS277-README.md)
 - [pyx12 ADR](003-pyx12-library.md)

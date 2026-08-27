@@ -110,6 +110,4 @@ of [`docs/architecture/claims-phase-1-closer.md`](../architecture/claims-phase-1
 - [`docs/POSITIONING.md`](../POSITIONING.md) — product positioning
 - [`docs/roadmap/CHO-Roadmap-Readme.md`](../roadmap/CHO-Roadmap-Readme.md)
   — commercial-readiness phase sequencing
-- [`docs/status/POSITIONING-AUDIT.md`](./POSITIONING-AUDIT.md) —
-  documentation-and-marketing audit (positioning alignment)
 - [`CHANGELOG.md`](../../CHANGELOG.md) — semver release log

@@ -154,4 +154,4 @@ Each service gets focused unit coverage of the deterministic pieces:
 | `SponsorsMemberViewTests`          | Broker + OE projected; null-safety on missing contacts; OE status shifts with `asOf` |
 
 The Sponsor test project is new (`SponsorService.Tests`) and registered in
-`cloudhealthoffice-main.sln`.
+`CloudHealthOffice.sln`.

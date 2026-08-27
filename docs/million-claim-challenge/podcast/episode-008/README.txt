@@ -39,8 +39,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 8 article source.
 - `benchmark-results.txt` - exact 100K run command, environment, gates, timing, and limitations.
-- `pr-summary.txt` - implementation work that raised the correctness bar before 100K.
-- `podcast-prompt.txt` - episode-specific generation prompt.
 - `raw-validator-output-post934-100k.txt` - raw validator console output from the completed post-#934 100K run.
 - `run-summary-post934-100k.json` - completed dashboard summary returned by claims-service for the post-#934 100K run.
 - `raw-validator-output-post937-100k-p12.txt` - raw validator console output from the completed 100K p12 confirmation run.

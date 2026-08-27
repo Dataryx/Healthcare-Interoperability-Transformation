@@ -24,7 +24,6 @@ replicas and preserve both in-window and post-window completion counts.
 Primary sources:
 
 - `benchmark-results.txt` — controlled live smoke measurements and limitations
-- `pr-summary.txt` — implementation scope
 
 Next scale exercise:
 

@@ -35,7 +35,6 @@ The episode should make clear that:
 
 - `article.txt` - draft Medium article source.
 - `benchmark-results.txt` - fresh 5K dashboard evidence run and portal verification notes.
-- `podcast-prompt.txt` - episode-specific prompt for Adobe Podcast / Acrobat Generate Podcast.
 - `screenshots/episode-007-local-docker-kubernetes-hardware-v2.png` - generated hero image showing the local Docker Desktop/Kubernetes hardware environment without benchmark result claims.
 - `screenshots/episode-007-mass-adjudication-dashboard.png` - Mass Adjudication run list and selected run detail.
 - `screenshots/episode-007-unsupported-filter.png` - claim results filtered to unsupported validation rows.
@@ -46,10 +45,6 @@ The episode should make clear that:
 
 Upload this packet with the reusable files in the parent folder:
 
-- `../host-personas.md`
-- `../adobe-podcast-prompt.md`
-- `../intro-script.md`
-- `../outro-script.md`
 
 The AI should not simply read the article. The preferred output is a natural conversation between two senior engineers.
 

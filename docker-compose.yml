@@ -334,7 +334,7 @@ services:
   terminology-service:
     build:
       context: .
-      dockerfile: src/services/CHO.TerminologyService/Dockerfile
+      dockerfile: src/services/terminology-service/Dockerfile
     ports:
       - "5080:5080"
     environment:
@@ -472,7 +472,7 @@ services:
   pricing-api:
     build:
       context: .
-      dockerfile: src/services/CloudHealthOffice.PricingApi/Dockerfile
+      dockerfile: src/services/pricing-api/Dockerfile
     ports:
       - "5017:8080"
     environment:

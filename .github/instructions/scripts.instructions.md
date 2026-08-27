@@ -27,7 +27,7 @@ PowerShell scripts for repository management, deployment automation, and workflo
 ### PowerShell Conventions
 - Use approved PowerShell verbs (Get, Set, New, Remove, etc.)
 - Follow PascalCase for function and parameter names
-- Use kebab-case for file names (e.g., `fix-repo-structure.ps1`)
+- Use kebab-case for file names (e.g., `deploy-local.sh`)
 - Include comment-based help for all functions
 - Use `[CmdletBinding()]` for advanced functions
 
@@ -126,7 +126,7 @@ The `pr-lint.yml` workflow validates:
 ./deploy-workflows.ps1 -WhatIf
 
 # Use -Verbose for detailed output
-./fix_repo_structure.ps1 -RepoRoot . -Verbose
+./deploy-workflows.ps1 -Verbose
 ```
 
 ## Common Scenarios

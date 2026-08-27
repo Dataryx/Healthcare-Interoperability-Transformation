@@ -33,8 +33,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 14 article source: the five-scenario sweep (three PRs), the CI catch, the P56 investigation, the two-stage fix, and the two things disclosed rather than smoothed over.
 - `benchmark-results.txt` - full evidence for all four PRs: per-scenario live verification numbers, the dashboard parallelism table, the cgroup cpu.stat before/after deltas at each fix stage, and the mismatch root-cause trace.
-- `pr-summary.txt` - implementation work covered by this episode (PRs #987-#990).
-- `podcast-prompt.txt` - episode-specific generation prompt, structured as two acts.
 - `dashboard-parallelism-data.txt` - raw dashboard API pulls: the 25-run parallelism table, cgroup cpu.stat deltas at each fix stage, and the OOM-kill pod evidence.
 - `raw-validator-output-zero-unsupported.txt` - raw scenario breakdown from the first zero-unsupported run, plus the per-claim mismatch evidence proving the 77 mismatches were a single consistent pattern unrelated to the OOM kill.
 - `screenshots/.gitkeep` - placeholder for console evidence screenshots.

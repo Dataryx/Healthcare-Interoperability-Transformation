@@ -5,12 +5,12 @@ WORKDIR /repo
 
 COPY src/Directory.Build.props src/
 COPY src/tools/mcc-platform-validator/mcc-platform-validator.csproj src/tools/mcc-platform-validator/
-COPY src/CloudHealthOffice.BenchmarkClaimGenerator/CloudHealthOffice.BenchmarkClaimGenerator.csproj src/CloudHealthOffice.BenchmarkClaimGenerator/
+COPY src/tools/benchmark-claim-generator/CloudHealthOffice.BenchmarkClaimGenerator.csproj src/tools/benchmark-claim-generator/
 
 RUN dotnet restore src/tools/mcc-platform-validator/mcc-platform-validator.csproj
 
 COPY src/tools/mcc-platform-validator/ src/tools/mcc-platform-validator/
-COPY src/CloudHealthOffice.BenchmarkClaimGenerator/ src/CloudHealthOffice.BenchmarkClaimGenerator/
+COPY src/tools/benchmark-claim-generator/ src/tools/benchmark-claim-generator/
 
 RUN dotnet publish src/tools/mcc-platform-validator/mcc-platform-validator.csproj \
     -c Release \

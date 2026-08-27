@@ -39,8 +39,6 @@ The episode must distinguish:
 
 - `article.txt` - Part 10 article source, including the profiling narrative and the three-round confirmation-run section.
 - `benchmark-results.txt` - run identity, command, and recorded results for the final, clean 250K p56 confirmation run, plus the full fix history across the performance-tuning pass and both confirmation-run defects.
-- `pr-summary.txt` - implementation work covered by this episode (#961, #962, #966, #967, #968, #969, #970, #971) and the disclosed, unfixed status-mapping bug.
-- `podcast-prompt.txt` - episode-specific generation prompt.
 - `raw-validator-output-250k-p56.txt` - raw validator console output from the final, clean confirmation run.
 - `run-summary-250k-p56.json` - completed dashboard summary returned by claims-service.
 - `screenshots/.gitkeep` - placeholder for console evidence screenshots.
